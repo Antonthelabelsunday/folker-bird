@@ -137,10 +137,24 @@ fetch('ding.wav')
   .then(ab => audioCtx.decodeAudioData(ab))
   .then(buf => { dingBuffer = buf; });
 
+let dieBuffer = null;
+fetch('die.wav')
+  .then(r => r.arrayBuffer())
+  .then(ab => audioCtx.decodeAudioData(ab))
+  .then(buf => { dieBuffer = buf; });
+
 function playDing() {
   if (!dingBuffer) return;
   const src = audioCtx.createBufferSource();
   src.buffer = dingBuffer;
+  src.connect(audioCtx.destination);
+  src.start();
+}
+
+function playDie() {
+  if (!dieBuffer) return;
+  const src = audioCtx.createBufferSource();
+  src.buffer = dieBuffer;
   src.connect(audioCtx.destination);
   src.start();
 }
@@ -545,7 +559,7 @@ function update(delta = 1) {
     if (pipes[i].x + pipes[i].width < 0) pipes.splice(i, 1);
   }
 
-  if (checkCollision()) triggerGameOver();
+  if (checkCollision()) { playDie(); triggerGameOver(); }
 }
 
 // ============================================================
