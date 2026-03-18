@@ -167,6 +167,82 @@ function playFlapSound() {
 }
 
 // ============================================================
+// BACKGROUND SWALLOWS
+// ============================================================
+let bgSwallows = [];
+let lastSwallowSpawn = 0;
+const SWALLOW_INTERVAL = 10000; // every 10 seconds
+
+function spawnBgSwallow() {
+  const fromLeft = Math.random() > 0.5;
+  const y = canvas.height * (0.08 + Math.random() * 0.5);
+  const speed = 1.2 + Math.random() * 1.0;
+  const size  = 5 + Math.random() * 4;
+  bgSwallows.push({
+    x:    fromLeft ? -30 : canvas.width + 30,
+    y,
+    vx:   fromLeft ? speed : -speed,
+    size,
+    wing: 0,
+    wingSpd: 0.13 + Math.random() * 0.08,
+  });
+}
+
+function updateBgSwallows(now) {
+  if (gameState === 'playing' && started) {
+    if (now - lastSwallowSpawn > SWALLOW_INTERVAL) {
+      // Spawn a small flock of 2-4
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => spawnBgSwallow(), i * 380);
+      }
+      lastSwallowSpawn = now;
+    }
+  }
+  bgSwallows = bgSwallows.filter(s => s.x > -60 && s.x < canvas.width + 60);
+  bgSwallows.forEach(s => { s.x += s.vx; s.wing += s.wingSpd; });
+}
+
+function drawBgSwallows() {
+  if (!bgSwallows.length) return;
+  ctx.save();
+  bgSwallows.forEach(s => {
+    const flap = Math.sin(s.wing) * s.size * 0.6;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    if (s.vx < 0) ctx.scale(-1, 1);
+    ctx.fillStyle = 'rgba(30, 30, 30, 0.65)';
+    ctx.beginPath();
+    // Body
+    ctx.ellipse(0, 0, s.size * 0.55, s.size * 0.18, 0, 0, Math.PI * 2);
+    // Left wing
+    ctx.moveTo(-s.size * 0.1, -s.size * 0.05);
+    ctx.bezierCurveTo(-s.size * 0.5, -flap - s.size * 0.1,
+                      -s.size * 1.3, -flap + s.size * 0.05,
+                      -s.size * 1.6, -flap + s.size * 0.2);
+    ctx.bezierCurveTo(-s.size * 1.1, -flap + s.size * 0.35,
+                      -s.size * 0.5,  s.size * 0.08,
+                      -s.size * 0.1,  s.size * 0.05);
+    // Right wing
+    ctx.moveTo(s.size * 0.1, -s.size * 0.05);
+    ctx.bezierCurveTo(s.size * 0.5, -flap - s.size * 0.1,
+                      s.size * 1.3, -flap + s.size * 0.05,
+                      s.size * 1.6, -flap + s.size * 0.2);
+    ctx.bezierCurveTo(s.size * 1.1, -flap + s.size * 0.35,
+                      s.size * 0.5,  s.size * 0.08,
+                      s.size * 0.1,  s.size * 0.05);
+    // Forked tail
+    ctx.moveTo(-s.size * 0.35, s.size * 0.05);
+    ctx.lineTo(-s.size * 0.55, s.size * 0.5);
+    ctx.moveTo(s.size * 0.35, s.size * 0.05);
+    ctx.lineTo(s.size * 0.55, s.size * 0.5);
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+// ============================================================
 // ATMOSPHERE UPDATE
 // ============================================================
 function updateAtmosphere() {
@@ -395,6 +471,7 @@ function gameLoop(timestamp) {
   const delta = Math.min(rawDelta / (1000 / 60), 2.5);
 
   updateAtmosphere();
+  updateBgSwallows(timestamp);
   if (gameState === 'playing') update(delta);
   draw();
 
@@ -462,6 +539,9 @@ function draw() {
 
   // Fog overlay — drawn above sky, below swords and bird
   drawFog();
+
+  // Background swallows — behind swords and player bird
+  drawBgSwallows();
 
   if (gameState === 'playing' || gameState === 'gameover') {
     drawSwords();
