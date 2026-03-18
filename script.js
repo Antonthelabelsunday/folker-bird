@@ -581,8 +581,6 @@ function draw() {
   // Fog overlay — drawn above sky, below swords and bird
   drawFog();
 
-  // Background swallows — behind swords and player bird
-  drawBgSwallows();
 
   if (gameState === 'playing' || gameState === 'gameover') {
     drawSwords();
