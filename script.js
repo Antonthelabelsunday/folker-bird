@@ -176,15 +176,15 @@ const SWALLOW_INTERVAL = 10000; // every 10 seconds
 function spawnBgSwallow() {
   const fromLeft = Math.random() > 0.5;
   const y = canvas.height * (0.08 + Math.random() * 0.5);
-  const speed = 1.2 + Math.random() * 1.0;
-  const size  = 5 + Math.random() * 4;
+  const speed = 1.4 + Math.random() * 1.2;
+  const size  = 14 + Math.random() * 8; // clearly visible
   bgSwallows.push({
-    x:    fromLeft ? -30 : canvas.width + 30,
+    x:    fromLeft ? -40 : canvas.width + 40,
     y,
     vx:   fromLeft ? speed : -speed,
     size,
     wing: 0,
-    wingSpd: 0.13 + Math.random() * 0.08,
+    wingSpd: 0.12 + Math.random() * 0.07,
   });
 }
 
@@ -211,7 +211,7 @@ function drawBgSwallows() {
     ctx.save();
     ctx.translate(s.x, s.y);
     if (s.vx < 0) ctx.scale(-1, 1);
-    ctx.fillStyle = 'rgba(30, 30, 30, 0.65)';
+    ctx.fillStyle = 'rgba(15, 15, 15, 0.88)';
     ctx.beginPath();
     // Body
     ctx.ellipse(0, 0, s.size * 0.55, s.size * 0.18, 0, 0, Math.PI * 2);
