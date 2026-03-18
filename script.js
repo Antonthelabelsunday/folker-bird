@@ -115,30 +115,27 @@ function startDeathAnim(onComplete) {
   const bw = bird.width;
   const bh = bird.height;
 
-  // Pixelated blood particles
   const blood = [];
-  for (let i = 0; i < 36; i++) {
-    const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI * 1.8;
-    const speed = 1.5 + Math.random() * 5.5;
+  for (let i = 0; i < 40; i++) {
+    const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI * 1.6;
+    const speed = 2 + Math.random() * 6;
     blood.push({
-      x:    bx + bw * 0.5 + (Math.random() - 0.5) * bw * 0.5,
+      x:    bx + bw * 0.5 + (Math.random() - 0.5) * bw * 0.4,
       y:    by + bh * 0.5,
       vx:   Math.cos(angle) * speed,
-      vy:   Math.sin(angle) * speed - 1,
-      size: 2 + Math.floor(Math.random() * 5),   // pixel blocks
+      vy:   Math.sin(angle) * speed - 1.5,
+      size: 3 + Math.floor(Math.random() * 5),
       dark: Math.random() < 0.4,
     });
   }
 
   deathAnim = {
     bx, by, bw, bh,
-    // top half
-    topY:   by,            topVY: -3.5,  topRot: 0,  topRotV: -0.055,
-    // bottom half
-    botY:   by + bh * 0.5, botVY:  1.5,  botRot: 0,  botRotV:  0.07,
+    topY: by,           topVY: -4,   topRot: 0, topRotV: -0.06,
+    botY: by + bh * 0.5, botVY: 2,   botRot: 0, botRotV:  0.08,
     blood,
-    frame:  0,
-    alpha:  1,
+    frame: 0,
+    alpha: 1,
     onComplete,
   };
 }
@@ -148,78 +145,74 @@ function updateDeathAnim() {
   const d = deathAnim;
   d.frame++;
 
-  // Top half falls with gravity
-  d.topVY  += 0.45;
-  d.topY   += d.topVY;
-  d.topRot += d.topRotV;
+  d.topVY  += 0.5;  d.topY   += d.topVY;  d.topRot += d.topRotV;
+  d.botVY  += 0.6;  d.botY   += d.botVY;  d.botRot += d.botRotV;
 
-  // Bottom half falls faster
-  d.botVY  += 0.55;
-  d.botY   += d.botVY;
-  d.botRot += d.botRotV;
-
-  // Blood particles fall
   d.blood.forEach(p => {
-    p.vx *= 0.97;
-    p.vy += 0.28;
-    p.x  += p.vx;
-    p.y  += p.vy;
+    p.vx *= 0.96; p.vy += 0.3;
+    p.x += p.vx;  p.y += p.vy;
   });
 
-  // Fade out after frame 38
-  if (d.frame > 38) {
-    d.alpha = Math.max(0, 1 - (d.frame - 38) / 22);
-  }
+  if (d.frame > 40) d.alpha = Math.max(0, 1 - (d.frame - 40) / 20);
 
   if (d.frame >= 60) {
+    const cb = d.onComplete;
     deathAnim = null;
-    onComplete();
-    function onComplete() { d.onComplete(); }
+    cb();
   }
 }
 
 function drawDeathAnim() {
   if (!deathAnim) return;
-  const d = deathAnim;
-  const hw = d.bw / 2;
-  const qh = d.bh / 4; // quarter height = centre of each half
+  const d   = deathAnim;
+  const hw  = d.bw / 2;
+  const qh  = d.bh / 4;
+  const nat = birdImg.naturalWidth > 0;
 
   ctx.save();
-  ctx.imageSmoothingEnabled = false; // pixelated
+  ctx.imageSmoothingEnabled = false;
 
-  // Blood — solid pixel squares
-  ctx.globalAlpha = d.alpha;
+  // Pixelated blood blocks
   d.blood.forEach(p => {
-    ctx.fillStyle = p.dark ? '#7a0000' : '#cc0000';
+    ctx.globalAlpha = d.alpha;
+    ctx.fillStyle   = p.dark ? '#880000' : '#dd0000';
     ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
   });
 
-  // Top half of bird sprite
-  if (birdImg.complete && birdImg.naturalWidth > 0) {
+  if (nat) {
+    const iw = birdImg.naturalWidth;
+    const ih = birdImg.naturalHeight;
+
+    // Top half — tumbles up-left, drawn with multiply to keep transparent look
     ctx.save();
     ctx.globalAlpha = d.alpha;
     ctx.translate(Math.round(d.bx + hw), Math.round(d.topY + qh));
     ctx.rotate(d.topRot);
     ctx.globalCompositeOperation = 'multiply';
-    ctx.drawImage(
-      birdImg,
-      0, 0, birdImg.naturalWidth, birdImg.naturalHeight * 0.5, // src: top half
-      -hw, -qh, d.bw, d.bh * 0.5                              // dst
-    );
+    ctx.drawImage(birdImg, 0, 0, iw, ih / 2, -hw, -qh, d.bw, d.bh / 2);
     ctx.restore();
 
-    // Bottom half of bird sprite
+    // Bottom half — tumbles down-right
     ctx.save();
     ctx.globalAlpha = d.alpha;
     ctx.translate(Math.round(d.bx + hw), Math.round(d.botY + qh));
     ctx.rotate(d.botRot);
     ctx.globalCompositeOperation = 'multiply';
-    ctx.drawImage(
-      birdImg,
-      0, birdImg.naturalHeight * 0.5, birdImg.naturalWidth, birdImg.naturalHeight * 0.5, // src: bottom half
-      -hw, -qh, d.bw, d.bh * 0.5                                                         // dst
-    );
+    ctx.drawImage(birdImg, 0, ih / 2, iw, ih / 2, -hw, -qh, d.bw, d.bh / 2);
     ctx.restore();
+
+    // Red slash line at cut point — flashes for first 6 frames
+    if (d.frame < 6) {
+      ctx.save();
+      ctx.globalAlpha = (1 - d.frame / 6) * 0.9;
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth   = 3;
+      ctx.beginPath();
+      ctx.moveTo(d.bx - 4,        d.by + d.bh * 0.5);
+      ctx.lineTo(d.bx + d.bw + 4, d.by + d.bh * 0.5);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   ctx.restore();
@@ -302,120 +295,83 @@ function playFlapSound() {
 }
 
 // ============================================================
-// BACKGROUND SWALLOWS
+// PIXELATED BACKGROUND BIRDS
 // ============================================================
-let bgSwallows = [];
-let lastSwallowSpawn = 0;
-const SWALLOW_INTERVAL = 10000; // every 10 seconds
+let bgPixelBirds = [];
+let nextBirdSpawn = 0; // timestamp for next spawn event
 
-function spawnBgSwallow() {
-  const fromLeft = Math.random() > 0.5;
-  const y = canvas.height * (0.08 + Math.random() * 0.5);
-  const speed = 1.6 + Math.random() * 1.4;
-  const size  = 14 + Math.random() * 8;
-  bgSwallows.push({
-    x:      fromLeft ? -40 : canvas.width + 40,
-    y,
-    baseY:  y,
-    vx:     fromLeft ? speed : -speed,
-    size,
-    wing:   Math.random() * Math.PI * 2, // stagger start phase
-    wingSpd: 0.16 + Math.random() * 0.10, // faster flap
-    bobAmp:  3 + Math.random() * 4,        // vertical bob
-    bobSpd:  0.04 + Math.random() * 0.03,
-    bobPh:   Math.random() * Math.PI * 2,
-  });
-}
-
-function updateBgSwallows(now) {
-  if (gameState === 'playing' && started) {
-    if (now - lastSwallowSpawn > SWALLOW_INTERVAL) {
-      // Spawn a small flock of 2-4
-      const count = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < count; i++) {
-        setTimeout(() => spawnBgSwallow(), i * 380);
-      }
-      lastSwallowSpawn = now;
-    }
-  }
-  bgSwallows = bgSwallows.filter(s => s.x > -80 && s.x < canvas.width + 80);
-  bgSwallows.forEach(s => {
-    s.x    += s.vx;
-    s.wing += s.wingSpd;
-    s.bobPh += s.bobSpd;
-    s.y = s.baseY + Math.sin(s.bobPh) * s.bobAmp; // gentle vertical drift
-  });
-}
-
-function drawBgSwallows() {
-  if (!bgSwallows.length) return;
+// Pixel art bird shape — drawn as filled squares on a grid
+// s = pixel size (1 pixel in art = s×s canvas pixels)
+// wingUp: true = wings up, false = wings down
+function drawPixelBird(x, y, s, wingUp, dir) {
+  // Pixel grid (7 wide × 3 tall):
+  //   wingUp:   .X...X.   wingDown:  .......
+  //             .XXXXX.              .X...X.
+  //             .......              .XXXXX.
+  // dir -1 = facing left (flip)
   ctx.save();
-  bgSwallows.forEach(s => {
-    const sz = s.size;
-    const flap = Math.sin(s.wing) * sz * 0.25; // subtle flap
-    ctx.save();
-    ctx.translate(s.x, s.y);
-    if (s.vx < 0) ctx.scale(-1, 1);
-    // Tilt slightly based on vertical bob — feels alive
-    const tilt = Math.cos(s.bobPh) * 0.12;
-    ctx.rotate(tilt);
-    ctx.fillStyle = 'rgba(12, 12, 12, 0.82)';
+  ctx.translate(Math.round(x), Math.round(y));
+  if (dir < 0) ctx.scale(-1, 1);
+  ctx.imageSmoothingEnabled = false;
 
-    // ── LEFT WING (scythe — sweeps forward then arcs back to sharp tip) ──
-    ctx.beginPath();
-    ctx.moveTo(-sz * 0.18, sz * 0.04);
-    ctx.bezierCurveTo(
-      -sz * 0.7,  -sz * 0.55 - flap,   // arc up and out
-      -sz * 1.6,  -sz * 0.72 - flap,   // reach far
-      -sz * 2.2,  -sz * 0.35 - flap    // wingtip — swept back
-    );
-    ctx.bezierCurveTo(
-      -sz * 1.9,   sz * 0.05,           // trailing edge sweeps back
-      -sz * 0.9,   sz * 0.18,
-      -sz * 0.18,  sz * 0.08
-    );
-    ctx.closePath();
-    ctx.fill();
-
-    // ── RIGHT WING (mirror) ──
-    ctx.beginPath();
-    ctx.moveTo(sz * 0.18, sz * 0.04);
-    ctx.bezierCurveTo(
-       sz * 0.7,  -sz * 0.55 - flap,
-       sz * 1.6,  -sz * 0.72 - flap,
-       sz * 2.2,  -sz * 0.35 - flap
-    );
-    ctx.bezierCurveTo(
-       sz * 1.9,   sz * 0.05,
-       sz * 0.9,   sz * 0.18,
-       sz * 0.18,  sz * 0.08
-    );
-    ctx.closePath();
-    ctx.fill();
-
-    // ── BODY — small torpedo ──
-    ctx.beginPath();
-    ctx.ellipse(0, 0, sz * 0.42, sz * 0.13, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ── HEAD — tiny circle at front ──
-    ctx.beginPath();
-    ctx.arc(-sz * 0.44, -sz * 0.04, sz * 0.11, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ── FORKED TAIL ──
-    ctx.beginPath();
-    ctx.moveTo(sz * 0.38, -sz * 0.02);
-    ctx.lineTo(sz * 0.72, -sz * 0.28); // upper prong
-    ctx.lineTo(sz * 0.48,  sz * 0.01);
-    ctx.lineTo(sz * 0.72,  sz * 0.24); // lower prong
-    ctx.lineTo(sz * 0.38,  sz * 0.04);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
-  });
+  if (wingUp) {
+    // Wings up row
+    ctx.fillRect(-3*s, -2*s, s, s);
+    ctx.fillRect( 2*s, -2*s, s, s);
+    // Body row
+    ctx.fillRect(-2*s, -s, 5*s, s);
+  } else {
+    // Body row
+    ctx.fillRect(-2*s, -s, 5*s, s);
+    // Wings down row
+    ctx.fillRect(-3*s,  0, s, s);
+    ctx.fillRect( 2*s,  0, s, s);
+  }
   ctx.restore();
+}
+
+function spawnPixelBirdGroup() {
+  const fromLeft  = Math.random() > 0.5;
+  const count     = 1 + Math.floor(Math.random() * 5); // 1–5 birds
+  const baseY     = canvas.height * (0.05 + Math.random() * 0.55);
+  const baseSpeed = 0.8 + Math.random() * 2.2;
+
+  for (let i = 0; i < count; i++) {
+    const s     = 1 + Math.floor(Math.random() * 4); // pixel size 1–4
+    const speed = baseSpeed * (0.8 + Math.random() * 0.4);
+    bgPixelBirds.push({
+      x:       fromLeft ? -20 : canvas.width + 20,
+      y:       baseY + (Math.random() - 0.5) * 40,
+      vx:      fromLeft ? speed : -speed,
+      s,
+      wing:    Math.random() * Math.PI * 2,
+      wingSpd: 0.06 + Math.random() * 0.08,
+    });
+  }
+}
+
+function updatePixelBirds(now) {
+  // Random spawn: next event fires between 4 and 18 seconds from now
+  if (now >= nextBirdSpawn) {
+    spawnPixelBirdGroup();
+    nextBirdSpawn = now + 4000 + Math.random() * 14000;
+  }
+
+  bgPixelBirds = bgPixelBirds.filter(b =>
+    b.x > -60 && b.x < canvas.width + 60
+  );
+  bgPixelBirds.forEach(b => {
+    b.x    += b.vx;
+    b.wing += b.wingSpd;
+  });
+}
+
+function drawPixelBirds() {
+  if (!bgPixelBirds.length) return;
+  ctx.fillStyle = 'rgba(10,10,10,0.80)';
+  bgPixelBirds.forEach(b => {
+    drawPixelBird(b.x, b.y, b.s, Math.sin(b.wing) > 0, b.vx > 0 ? 1 : -1);
+  });
 }
 
 // ============================================================
@@ -685,6 +641,7 @@ function gameLoop(timestamp) {
   updateAtmosphere();
   if (gameState === 'playing') update(delta);
   if (deathAnim) updateDeathAnim();
+  updatePixelBirds(timestamp);
   draw();
 
   requestAnimationFrame(gameLoop);
@@ -768,6 +725,8 @@ function draw() {
   // Fog overlay — drawn above sky, below swords and bird
   drawFog();
 
+  // Pixelated background birds
+  drawPixelBirds();
 
   if (gameState === 'playing' || gameState === 'gameover') {
     drawSwords();
