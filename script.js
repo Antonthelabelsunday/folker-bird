@@ -504,15 +504,45 @@ function spawnPipe() {
   const maxGapTop  = groundY - CONFIG.gapHeight - 60;
   // Each sword pair gets a slight width variation for organic feel
   const widthScale = 0.82 + Math.random() * 0.38;
+  let gapSize = CONFIG.gapHeight;
+  let pSpeed  = 0.022 + Math.random() * 0.01;
+
+  if (score >= 30) {
+    const roll = Math.random();
+    if (score >= 60) {
+      // 60+: extreme variation
+      if (roll < 0.25) {
+        pSpeed = 0;                              // completely still
+      } else if (roll < 0.55) {
+        pSpeed = 0.09 + Math.random() * 0.06;   // very fast
+      } else {
+        pSpeed = 0.012 + Math.random() * 0.008; // very slow
+      }
+      gapSize = CONFIG.gapHeight + (Math.random() * 80 - 40); // ±40px
+      gapSize = Math.max(100, Math.min(230, gapSize));
+    } else {
+      // 30–59: mild variation
+      if (roll < 0.25) {
+        pSpeed = 0;                              // still
+      } else if (roll < 0.5) {
+        pSpeed = 0.05 + Math.random() * 0.02;   // faster
+      }
+      // else keep default slow speed
+      gapSize = CONFIG.gapHeight + (Math.random() * 40 - 20); // ±20px
+      gapSize = Math.max(120, Math.min(210, gapSize));
+    }
+  }
+
   pipes.push({
     x:          canvas.width,
     gapTop:     Math.random() * (maxGapTop - minGapTop) + minGapTop,
+    gapSize,
     width:      Math.round(CONFIG.pipeWidth * widthScale),
     passed:     false,
     widthScale,
     yOffset:    0,
     phase:      Math.random() * Math.PI * 2,
-    phaseSpeed: 0.022 + Math.random() * 0.01,
+    phaseSpeed: pSpeed,
   });
 }
 
@@ -557,9 +587,11 @@ function update(delta = 1) {
     pipe.x -= CONFIG.pipeSpeed * speedMultiplier * delta;
 
     // Vertical oscillation kicks in at score 40
-    if (score >= 40) {
+    if (score >= 30 && pipe.phaseSpeed > 0) {
       pipe.phase += pipe.phaseSpeed * delta;
-      const amplitude = Math.min(30, (score - 40) * 0.6 + 10); // grows slightly with score
+      const amplitude = score >= 60
+        ? Math.min(45, (score - 60) * 0.8 + 30)  // bigger swings at 60+
+        : Math.min(20, (score - 30) * 0.4 + 8);  // gentle at 30–59
       pipe.yOffset = Math.sin(pipe.phase) * amplitude;
     }
 
@@ -591,7 +623,7 @@ function checkCollision() {
   if (by + bh >= groundY || by <= 0) return true;
   for (const pipe of pipes) {
     const gapTop  = pipe.gapTop + pipe.yOffset;
-    const bottomY = gapTop + CONFIG.gapHeight;
+    const bottomY = gapTop + pipe.gapSize;
     const px = pipe.x + PI;
     const pw = pipe.width - PI * 2;
     if (bx + bw > px && bx < px + pw) {
@@ -673,7 +705,7 @@ function drawBird() {
 function drawSwords() {
   for (const pipe of pipes) {
     const gapTop  = pipe.gapTop + pipe.yOffset;
-    const bottomY = gapTop + CONFIG.gapHeight;
+    const bottomY = gapTop + pipe.gapSize;
     drawSwordMist(pipe.x, pipe.width, gapTop, bottomY);
     drawSwordPNG(pipe.x, pipe.width, 0,       gapTop,                  'down');
     drawSwordPNG(pipe.x, pipe.width, bottomY, canvas.height - bottomY, 'up');
