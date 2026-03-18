@@ -300,34 +300,22 @@ function playFlapSound() {
 let bgPixelBirds = [];
 let nextBirdSpawn = 0; // timestamp for next spawn event
 
-// Pixel art bird shape — drawn as filled squares on a grid
-// s = pixel size (1 pixel in art = s×s canvas pixels)
-// wingUp: true = wings up, false = wings down
-function drawPixelBird(x, y, s, wingUp, dir) {
-  // Pixel grid (7 wide × 3 tall):
-  //   wingUp:   .X...X.   wingDown:  .......
-  //             .XXXXX.              .X...X.
-  //             .......              .XXXXX.
-  // dir -1 = facing left (flip)
-  ctx.save();
-  ctx.translate(Math.round(x), Math.round(y));
-  if (dir < 0) ctx.scale(-1, 1);
+// Seagull M-shape — two wings meeting at a body centre
+// s = pixel block size, wing = sine phase for flap animation
+function drawPixelBird(x, y, s, wing) {
+  const tip = Math.round(Math.sin(wing) * s * 1.8); // outer tips flap up/down
+  const cx  = Math.round(x);
+  const cy  = Math.round(y);
   ctx.imageSmoothingEnabled = false;
 
-  if (wingUp) {
-    // Wings up row
-    ctx.fillRect(-3*s, -2*s, s, s);
-    ctx.fillRect( 2*s, -2*s, s, s);
-    // Body row
-    ctx.fillRect(-2*s, -s, 5*s, s);
-  } else {
-    // Body row
-    ctx.fillRect(-2*s, -s, 5*s, s);
-    // Wings down row
-    ctx.fillRect(-3*s,  0, s, s);
-    ctx.fillRect( 2*s,  0, s, s);
-  }
-  ctx.restore();
+  // Left outer wing (tips move with flap)
+  ctx.fillRect(cx - 4*s, cy - s - tip, 2*s, s);
+  // Left inner wing (fixed — creates the M dip)
+  ctx.fillRect(cx - 2*s, cy - s,       2*s, s);
+  // Right inner wing
+  ctx.fillRect(cx,       cy - s,       2*s, s);
+  // Right outer wing
+  ctx.fillRect(cx + 2*s, cy - s - tip, 2*s, s);
 }
 
 function spawnPixelBirdGroup() {
@@ -368,9 +356,9 @@ function updatePixelBirds(now) {
 
 function drawPixelBirds() {
   if (!bgPixelBirds.length) return;
-  ctx.fillStyle = 'rgba(10,10,10,0.80)';
+  ctx.fillStyle = 'rgba(10,10,10,0.82)';
   bgPixelBirds.forEach(b => {
-    drawPixelBird(b.x, b.y, b.s, Math.sin(b.wing) > 0, b.vx > 0 ? 1 : -1);
+    drawPixelBird(b.x, b.y, b.s, b.wing);
   });
 }
 
