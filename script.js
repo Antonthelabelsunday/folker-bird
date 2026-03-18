@@ -768,11 +768,14 @@ async function fetchTopScores() {
   if (FIREBASE_URL) {
     try {
       const r = await fetch(`${FIREBASE_URL}/scores.json?orderBy="score"&limitToLast=20`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
-      if (data && typeof data === 'object') {
-        return Object.values(data).sort((a, b) => b.score - a.score).slice(0, 10);
+      // Guard against Firebase error objects like { "error": "Index not defined..." }
+      if (data && typeof data === 'object' && !data.error) {
+        const entries = Object.values(data).filter(s => s && s.name && s.score != null);
+        return entries.sort((a, b) => b.score - a.score).slice(0, 10);
       }
-    } catch(e) { /* fall through to local */ }
+    } catch(e) { console.warn('Firebase fetch failed', e); }
   }
   return getLocalScores().slice(0, 10);
 }
@@ -877,11 +880,14 @@ document.getElementById('player-name-input').addEventListener('keydown', (e) => 
 document.getElementById('start-btn').addEventListener('click',   startGame);
 document.getElementById('restart-btn').addEventListener('click', restartGame);
 
-// On load: if name already saved, skip name screen
+// On load: if name already saved, pre-fill and skip name screen
 if (playerName) {
   document.getElementById('player-name-input').value = playerName;
   hideOverlay('name-overlay');
   showOverlay('start-overlay');
+} else {
+  // Focus the input so the keyboard comes up immediately on mobile
+  setTimeout(() => document.getElementById('player-name-input').focus(), 400);
 }
 
 // ============================================================
