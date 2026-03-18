@@ -397,12 +397,23 @@ function update() {
 // COLLISION
 // ============================================================
 function checkCollision() {
+  // Shrink collision boxes so near-misses feel fair
+  const BI = 14; // bird inset px on each side
+  const PI = 10; // pipe inset px on each side (horizontal)
+
+  const bx = bird.x + BI;
+  const by = bird.y + BI;
+  const bw = bird.width  - BI * 2;
+  const bh = bird.height - BI * 2;
+
   const groundY = canvas.height - CONFIG.groundHeight;
-  if (bird.y + bird.height >= groundY || bird.y <= 0) return true;
+  if (by + bh >= groundY || by <= 0) return true;
   for (const pipe of pipes) {
     const bottomY = pipe.gapTop + CONFIG.gapHeight;
-    if (bird.x + bird.width > pipe.x && bird.x < pipe.x + pipe.width) {
-      if (bird.y < pipe.gapTop || bird.y + bird.height > bottomY) return true;
+    const px = pipe.x + PI;
+    const pw = pipe.width - PI * 2;
+    if (bx + bw > px && bx < px + pw) {
+      if (by < pipe.gapTop || by + bh > bottomY) return true;
     }
   }
   return false;
