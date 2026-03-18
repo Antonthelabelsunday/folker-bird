@@ -176,15 +176,19 @@ const SWALLOW_INTERVAL = 10000; // every 10 seconds
 function spawnBgSwallow() {
   const fromLeft = Math.random() > 0.5;
   const y = canvas.height * (0.08 + Math.random() * 0.5);
-  const speed = 1.4 + Math.random() * 1.2;
-  const size  = 14 + Math.random() * 8; // clearly visible
+  const speed = 1.6 + Math.random() * 1.4;
+  const size  = 14 + Math.random() * 8;
   bgSwallows.push({
-    x:    fromLeft ? -40 : canvas.width + 40,
+    x:      fromLeft ? -40 : canvas.width + 40,
     y,
-    vx:   fromLeft ? speed : -speed,
+    baseY:  y,
+    vx:     fromLeft ? speed : -speed,
     size,
-    wing: 0,
-    wingSpd: 0.12 + Math.random() * 0.07,
+    wing:   Math.random() * Math.PI * 2, // stagger start phase
+    wingSpd: 0.16 + Math.random() * 0.10, // faster flap
+    bobAmp:  3 + Math.random() * 4,        // vertical bob
+    bobSpd:  0.04 + Math.random() * 0.03,
+    bobPh:   Math.random() * Math.PI * 2,
   });
 }
 
@@ -199,44 +203,81 @@ function updateBgSwallows(now) {
       lastSwallowSpawn = now;
     }
   }
-  bgSwallows = bgSwallows.filter(s => s.x > -60 && s.x < canvas.width + 60);
-  bgSwallows.forEach(s => { s.x += s.vx; s.wing += s.wingSpd; });
+  bgSwallows = bgSwallows.filter(s => s.x > -80 && s.x < canvas.width + 80);
+  bgSwallows.forEach(s => {
+    s.x    += s.vx;
+    s.wing += s.wingSpd;
+    s.bobPh += s.bobSpd;
+    s.y = s.baseY + Math.sin(s.bobPh) * s.bobAmp; // gentle vertical drift
+  });
 }
 
 function drawBgSwallows() {
   if (!bgSwallows.length) return;
   ctx.save();
   bgSwallows.forEach(s => {
-    const flap = Math.sin(s.wing) * s.size * 0.6;
+    const sz = s.size;
+    const flap = Math.sin(s.wing) * sz * 0.25; // subtle flap
     ctx.save();
     ctx.translate(s.x, s.y);
     if (s.vx < 0) ctx.scale(-1, 1);
-    ctx.fillStyle = 'rgba(15, 15, 15, 0.88)';
+    // Tilt slightly based on vertical bob — feels alive
+    const tilt = Math.cos(s.bobPh) * 0.12;
+    ctx.rotate(tilt);
+    ctx.fillStyle = 'rgba(12, 12, 12, 0.82)';
+
+    // ── LEFT WING (scythe — sweeps forward then arcs back to sharp tip) ──
     ctx.beginPath();
-    // Body
-    ctx.ellipse(0, 0, s.size * 0.55, s.size * 0.18, 0, 0, Math.PI * 2);
-    // Left wing
-    ctx.moveTo(-s.size * 0.1, -s.size * 0.05);
-    ctx.bezierCurveTo(-s.size * 0.5, -flap - s.size * 0.1,
-                      -s.size * 1.3, -flap + s.size * 0.05,
-                      -s.size * 1.6, -flap + s.size * 0.2);
-    ctx.bezierCurveTo(-s.size * 1.1, -flap + s.size * 0.35,
-                      -s.size * 0.5,  s.size * 0.08,
-                      -s.size * 0.1,  s.size * 0.05);
-    // Right wing
-    ctx.moveTo(s.size * 0.1, -s.size * 0.05);
-    ctx.bezierCurveTo(s.size * 0.5, -flap - s.size * 0.1,
-                      s.size * 1.3, -flap + s.size * 0.05,
-                      s.size * 1.6, -flap + s.size * 0.2);
-    ctx.bezierCurveTo(s.size * 1.1, -flap + s.size * 0.35,
-                      s.size * 0.5,  s.size * 0.08,
-                      s.size * 0.1,  s.size * 0.05);
-    // Forked tail
-    ctx.moveTo(-s.size * 0.35, s.size * 0.05);
-    ctx.lineTo(-s.size * 0.55, s.size * 0.5);
-    ctx.moveTo(s.size * 0.35, s.size * 0.05);
-    ctx.lineTo(s.size * 0.55, s.size * 0.5);
+    ctx.moveTo(-sz * 0.18, sz * 0.04);
+    ctx.bezierCurveTo(
+      -sz * 0.7,  -sz * 0.55 - flap,   // arc up and out
+      -sz * 1.6,  -sz * 0.72 - flap,   // reach far
+      -sz * 2.2,  -sz * 0.35 - flap    // wingtip — swept back
+    );
+    ctx.bezierCurveTo(
+      -sz * 1.9,   sz * 0.05,           // trailing edge sweeps back
+      -sz * 0.9,   sz * 0.18,
+      -sz * 0.18,  sz * 0.08
+    );
+    ctx.closePath();
     ctx.fill();
+
+    // ── RIGHT WING (mirror) ──
+    ctx.beginPath();
+    ctx.moveTo(sz * 0.18, sz * 0.04);
+    ctx.bezierCurveTo(
+       sz * 0.7,  -sz * 0.55 - flap,
+       sz * 1.6,  -sz * 0.72 - flap,
+       sz * 2.2,  -sz * 0.35 - flap
+    );
+    ctx.bezierCurveTo(
+       sz * 1.9,   sz * 0.05,
+       sz * 0.9,   sz * 0.18,
+       sz * 0.18,  sz * 0.08
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // ── BODY — small torpedo ──
+    ctx.beginPath();
+    ctx.ellipse(0, 0, sz * 0.42, sz * 0.13, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── HEAD — tiny circle at front ──
+    ctx.beginPath();
+    ctx.arc(-sz * 0.44, -sz * 0.04, sz * 0.11, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── FORKED TAIL ──
+    ctx.beginPath();
+    ctx.moveTo(sz * 0.38, -sz * 0.02);
+    ctx.lineTo(sz * 0.72, -sz * 0.28); // upper prong
+    ctx.lineTo(sz * 0.48,  sz * 0.01);
+    ctx.lineTo(sz * 0.72,  sz * 0.24); // lower prong
+    ctx.lineTo(sz * 0.38,  sz * 0.04);
+    ctx.closePath();
+    ctx.fill();
+
     ctx.restore();
   });
   ctx.restore();
@@ -760,7 +801,11 @@ function hideOverlay(id) { document.getElementById(id).classList.add('hidden'); 
 function scaleToScreen() {
   const scaleX = window.innerWidth  / canvas.width;
   const scaleY = window.innerHeight / canvas.height;
-  const scale  = Math.max(scaleX, scaleY); // cover — fills the full screen
+  // Portrait (iPhone): scale to fill full screen edge-to-edge
+  // Landscape / desktop: fit inside the viewport (no overflow)
+  const scale = window.innerHeight > window.innerWidth
+    ? Math.max(scaleX, scaleY)
+    : Math.min(scaleX, scaleY);
   document.getElementById('game-container').style.transform = `scale(${scale})`;
 }
 window.addEventListener('resize', scaleToScreen);
