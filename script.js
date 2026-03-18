@@ -204,7 +204,9 @@ function drawBackground() {
     const drawH = canvas.height + pad * 2;
     const ox = Math.sin(bgTime * 1.0)        * pad;
     const oy = Math.sin(bgTime * 0.7 + 1.2)  * pad * 0.6;
+    ctx.globalAlpha = 0.45;
     ctx.drawImage(bgImg, -pad + ox, -pad + oy, drawW, drawH);
+    ctx.globalAlpha = 1.0;
   }
 
   // 2. Heavenly light shaft from top-centre downward
