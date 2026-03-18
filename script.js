@@ -307,22 +307,16 @@ const BIRD_FRAMES = [0, 3, 6, 3].map(i => {
 let bgPixelBirds = [];
 let nextBirdSpawn = 0; // timestamp for next spawn event
 
-// Draw bird frame — each frame is a 320×320 PNG centred on the bird
-// s=1→28px, s=2→56px, s=3→84px  |  facingRight flips the sprite
-function drawPixelBird(x, y, s, frameIdx, facingRight) {
+// Draw bird frame — sprite faces LEFT; flip when flying right
+function drawPixelBird(x, y, s, frameIdx, flyingRight) {
   const frame = BIRD_FRAMES[frameIdx % BIRD_FRAMES.length];
   if (!frame.complete || !frame.naturalWidth) return;
-  const size = s * 28;
-  const dx   = Math.round(x - size / 2);
-  const dy   = Math.round(y - size / 2);
+  const size = s * 18;               // smaller: s=1→18px, s=2→36px, s=3→54px
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  if (facingRight) {
-    // Flip horizontally around bird centre
-    ctx.translate(Math.round(x) * 2, 0);
-    ctx.scale(-1, 1);
-  }
-  ctx.drawImage(frame, dx, dy, size, size);
+  ctx.translate(Math.round(x), Math.round(y));
+  if (flyingRight) ctx.scale(-1, 1); // flip to face right
+  ctx.drawImage(frame, -size / 2, -size / 2, size, size);
   ctx.restore();
 }
 
@@ -332,19 +326,26 @@ function spawnPixelBirdGroup() {
 
   const fromLeft  = Math.random() > 0.5;
   const count     = Math.min(slots, 1 + Math.floor(Math.random() * 2)); // 1–2 but capped
-  const baseY     = canvas.height * (0.05 + Math.random() * 0.55);
   const baseSpeed = 0.8 + Math.random() * 2.2;
+  const MIN_Y_DIST = 80; // px — minimum vertical gap between any two birds
 
   for (let i = 0; i < count; i++) {
-    const s = 1 + Math.floor(Math.random() * 3); // size 1–3 (smaller)
+    // Try up to 8 times to find a Y that's far enough from all existing birds
+    let candidateY;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      candidateY = canvas.height * (0.05 + Math.random() * 0.80);
+      const tooClose = bgPixelBirds.some(b => Math.abs(b.y - candidateY) < MIN_Y_DIST);
+      if (!tooClose) break;
+    }
+    const s = 1 + Math.floor(Math.random() * 2); // size 1–2 (keep small)
     bgPixelBirds.push({
-      x:         fromLeft ? -40 : canvas.width + 40,
-      y:         baseY + (Math.random() - 0.5) * 40,
-      vx:        fromLeft ? baseSpeed : -baseSpeed,
+      x:          fromLeft ? -40 : canvas.width + 40,
+      y:          candidateY,
+      vx:         fromLeft ? baseSpeed : -baseSpeed,
       s,
-      frame:     Math.floor(Math.random() * 10), // start on random frame
+      frame:      Math.floor(Math.random() * 10), // start on random frame
       frameTimer: 0,
-      frameDelay: 80 + Math.random() * 40,       // ms per animation frame (~10fps)
+      frameDelay: 80 + Math.random() * 40,        // ms per animation frame (~10fps)
     });
   }
 }
