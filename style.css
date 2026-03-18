@@ -12,8 +12,11 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #e8e8e8 url('clouds.jpeg') center center / cover no-repeat fixed;
+  /* 'fixed' breaks on iOS Safari — use scroll instead */
+  background: #e8e8e8 url('clouds.jpeg') center center / cover no-repeat scroll;
   font-family: Arial, sans-serif;
+  overflow: hidden;
+  touch-action: none; /* prevents pull-to-refresh and scroll bounce */
 }
 
 /* ============================================================
@@ -21,6 +24,7 @@ body {
    ============================================================ */
 #game-container {
   position: relative;        /* Overlays use absolute positioning relative to this */
+  transform-origin: top center;
 }
 
 #gameCanvas {

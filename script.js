@@ -644,6 +644,18 @@ function showOverlay(id) { document.getElementById(id).classList.remove('hidden'
 function hideOverlay(id) { document.getElementById(id).classList.add('hidden'); }
 
 // ============================================================
+// SCALE TO SCREEN — fills iPhone screen while keeping game logic at 400×600
+// ============================================================
+function scaleToScreen() {
+  const scaleX = window.innerWidth  / canvas.width;
+  const scaleY = window.innerHeight / canvas.height;
+  const scale  = Math.min(scaleX, scaleY);
+  document.getElementById('game-container').style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', scaleToScreen);
+scaleToScreen();
+
+// ============================================================
 // BOOT
 // ============================================================
 requestAnimationFrame(gameLoop);
