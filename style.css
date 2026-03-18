@@ -16,6 +16,9 @@ body {
   background: #f0eeea url('bg_surround.png') center center / cover no-repeat scroll;
   font-family: Arial, sans-serif;
   overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport height — accounts for iPhone Safari address bar */
   touch-action: none; /* prevents pull-to-refresh and scroll bounce */
 }
 

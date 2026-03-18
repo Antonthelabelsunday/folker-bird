@@ -680,7 +680,7 @@ function hideOverlay(id) { document.getElementById(id).classList.add('hidden'); 
 function scaleToScreen() {
   const scaleX = window.innerWidth  / canvas.width;
   const scaleY = window.innerHeight / canvas.height;
-  const scale  = Math.min(scaleX, scaleY);
+  const scale  = Math.max(scaleX, scaleY); // cover — fills the full screen
   document.getElementById('game-container').style.transform = `scale(${scale})`;
 }
 window.addEventListener('resize', scaleToScreen);
