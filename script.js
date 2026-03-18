@@ -550,7 +550,7 @@ function update(delta = 1) {
   bird.y        += bird.velocity * delta;
 
   // Speed increases 5% every 10 points
-  const speedMultiplier = Math.pow(1.05, Math.floor(score / 10));
+  const speedMultiplier = Math.pow(1.10, Math.floor(score / 10));
 
   for (let i = pipes.length - 1; i >= 0; i--) {
     const pipe = pipes[i];
