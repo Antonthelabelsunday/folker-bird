@@ -104,6 +104,127 @@ let gameState = 'waiting';
 let pipes, score, pipeTimerId, lastTimestamp, started;
 let lastFlapTime = 0;
 
+// ============================================================
+// DEATH ANIMATION
+// ============================================================
+let deathAnim = null;
+
+function startDeathAnim(onComplete) {
+  const bx = bird.x;
+  const by = bird.y;
+  const bw = bird.width;
+  const bh = bird.height;
+
+  // Pixelated blood particles
+  const blood = [];
+  for (let i = 0; i < 36; i++) {
+    const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI * 1.8;
+    const speed = 1.5 + Math.random() * 5.5;
+    blood.push({
+      x:    bx + bw * 0.5 + (Math.random() - 0.5) * bw * 0.5,
+      y:    by + bh * 0.5,
+      vx:   Math.cos(angle) * speed,
+      vy:   Math.sin(angle) * speed - 1,
+      size: 2 + Math.floor(Math.random() * 5),   // pixel blocks
+      dark: Math.random() < 0.4,
+    });
+  }
+
+  deathAnim = {
+    bx, by, bw, bh,
+    // top half
+    topY:   by,            topVY: -3.5,  topRot: 0,  topRotV: -0.055,
+    // bottom half
+    botY:   by + bh * 0.5, botVY:  1.5,  botRot: 0,  botRotV:  0.07,
+    blood,
+    frame:  0,
+    alpha:  1,
+    onComplete,
+  };
+}
+
+function updateDeathAnim() {
+  if (!deathAnim) return;
+  const d = deathAnim;
+  d.frame++;
+
+  // Top half falls with gravity
+  d.topVY  += 0.45;
+  d.topY   += d.topVY;
+  d.topRot += d.topRotV;
+
+  // Bottom half falls faster
+  d.botVY  += 0.55;
+  d.botY   += d.botVY;
+  d.botRot += d.botRotV;
+
+  // Blood particles fall
+  d.blood.forEach(p => {
+    p.vx *= 0.97;
+    p.vy += 0.28;
+    p.x  += p.vx;
+    p.y  += p.vy;
+  });
+
+  // Fade out after frame 38
+  if (d.frame > 38) {
+    d.alpha = Math.max(0, 1 - (d.frame - 38) / 22);
+  }
+
+  if (d.frame >= 60) {
+    deathAnim = null;
+    onComplete();
+    function onComplete() { d.onComplete(); }
+  }
+}
+
+function drawDeathAnim() {
+  if (!deathAnim) return;
+  const d = deathAnim;
+  const hw = d.bw / 2;
+  const qh = d.bh / 4; // quarter height = centre of each half
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false; // pixelated
+
+  // Blood — solid pixel squares
+  ctx.globalAlpha = d.alpha;
+  d.blood.forEach(p => {
+    ctx.fillStyle = p.dark ? '#7a0000' : '#cc0000';
+    ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+  });
+
+  // Top half of bird sprite
+  if (birdImg.complete && birdImg.naturalWidth > 0) {
+    ctx.save();
+    ctx.globalAlpha = d.alpha;
+    ctx.translate(Math.round(d.bx + hw), Math.round(d.topY + qh));
+    ctx.rotate(d.topRot);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(
+      birdImg,
+      0, 0, birdImg.naturalWidth, birdImg.naturalHeight * 0.5, // src: top half
+      -hw, -qh, d.bw, d.bh * 0.5                              // dst
+    );
+    ctx.restore();
+
+    // Bottom half of bird sprite
+    ctx.save();
+    ctx.globalAlpha = d.alpha;
+    ctx.translate(Math.round(d.bx + hw), Math.round(d.botY + qh));
+    ctx.rotate(d.botRot);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(
+      birdImg,
+      0, birdImg.naturalHeight * 0.5, birdImg.naturalWidth, birdImg.naturalHeight * 0.5, // src: bottom half
+      -hw, -qh, d.bw, d.bh * 0.5                                                         // dst
+    );
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
 // Bird initialised immediately so drawBird() works before startGame()
 let bird = {
   x:        CONFIG.birdX,
@@ -563,6 +684,7 @@ function gameLoop(timestamp) {
 
   updateAtmosphere();
   if (gameState === 'playing') update(delta);
+  if (deathAnim) updateDeathAnim();
   draw();
 
   requestAnimationFrame(gameLoop);
@@ -607,7 +729,7 @@ function update(delta = 1) {
     if (pipe.x + pipe.width < 0) pipes.splice(i, 1);
   }
 
-  if (checkCollision()) { playDie(); triggerGameOver(); }
+  if (checkCollision()) triggerGameOver();
 }
 
 // ============================================================
@@ -650,8 +772,12 @@ function draw() {
   if (gameState === 'playing' || gameState === 'gameover') {
     drawSwords();
   }
-  // Bird always visible so player sees it before first tap
-  drawBird();
+  // During death animation hide the live bird; show halves instead
+  if (deathAnim) {
+    drawDeathAnim();
+  } else {
+    drawBird();
+  }
 
   // Ground collision handled in code — no visual cut needed
 
@@ -962,26 +1088,32 @@ function startGame() {
 async function triggerGameOver() {
   gameState = 'gameover';
   clearInterval(pipeTimerId);
-  incrementGamesPlayed();
-  const gamesLeft = MAX_GAMES_PER_NAME - getGamesPlayed();
+  playDie();
 
-  document.getElementById('final-score').textContent = `Score: ${score}`;
+  const finalScore = score;
 
-  // Show how many games remain on the restart button area
-  const restartBtn = document.getElementById('restart-btn');
-  if (gamesLeft <= 0) {
-    restartBtn.style.opacity = '0.5';
-    document.getElementById('games-left-msg').textContent = 'NAME EXPIRED — PICK A NEW ONE';
-  } else {
-    restartBtn.style.opacity = '1';
-    document.getElementById('games-left-msg').textContent =
-      gamesLeft === 1 ? 'LAST GAME WITH THIS NAME' : `${gamesLeft} GAMES LEFT WITH THIS NAME`;
-  }
+  // Play death animation first, then show overlay
+  startDeathAnim(() => {
+    incrementGamesPlayed();
+    const gamesLeft = MAX_GAMES_PER_NAME - getGamesPlayed();
 
-  showOverlay('gameover-overlay');
-  saveLocalScore(playerName, score);
-  submitToFirebase(playerName, score);
-  showLeaderboard(playerName, score);
+    document.getElementById('final-score').textContent = `Score: ${finalScore}`;
+
+    const restartBtn = document.getElementById('restart-btn');
+    if (gamesLeft <= 0) {
+      restartBtn.style.opacity = '0.5';
+      document.getElementById('games-left-msg').textContent = 'NAME EXPIRED — PICK A NEW ONE';
+    } else {
+      restartBtn.style.opacity = '1';
+      document.getElementById('games-left-msg').textContent =
+        gamesLeft === 1 ? 'LAST GAME WITH THIS NAME' : `${gamesLeft} GAMES LEFT WITH THIS NAME`;
+    }
+
+    showOverlay('gameover-overlay');
+    saveLocalScore(playerName, finalScore);
+    submitToFirebase(playerName, finalScore);
+    showLeaderboard(playerName, finalScore);
+  });
 }
 
 function restartGame() {
