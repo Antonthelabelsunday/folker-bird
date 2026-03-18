@@ -510,6 +510,9 @@ function spawnPipe() {
     width:      Math.round(CONFIG.pipeWidth * widthScale),
     passed:     false,
     widthScale,
+    yOffset:    0,
+    phase:      Math.random() * Math.PI * 2,
+    phaseSpeed: 0.022 + Math.random() * 0.01,
   });
 }
 
@@ -550,13 +553,22 @@ function update(delta = 1) {
   const speedMultiplier = Math.pow(1.05, Math.floor(score / 10));
 
   for (let i = pipes.length - 1; i >= 0; i--) {
-    pipes[i].x -= CONFIG.pipeSpeed * speedMultiplier * delta;
-    if (!pipes[i].passed && pipes[i].x + pipes[i].width < bird.x) {
-      pipes[i].passed = true;
+    const pipe = pipes[i];
+    pipe.x -= CONFIG.pipeSpeed * speedMultiplier * delta;
+
+    // Vertical oscillation kicks in at score 40
+    if (score >= 40) {
+      pipe.phase += pipe.phaseSpeed * delta;
+      const amplitude = Math.min(30, (score - 40) * 0.6 + 10); // grows slightly with score
+      pipe.yOffset = Math.sin(pipe.phase) * amplitude;
+    }
+
+    if (!pipe.passed && pipe.x + pipe.width < bird.x) {
+      pipe.passed = true;
       score++;
       playDing();
     }
-    if (pipes[i].x + pipes[i].width < 0) pipes.splice(i, 1);
+    if (pipe.x + pipe.width < 0) pipes.splice(i, 1);
   }
 
   if (checkCollision()) { playDie(); triggerGameOver(); }
@@ -578,11 +590,12 @@ function checkCollision() {
   const groundY = canvas.height - CONFIG.groundHeight;
   if (by + bh >= groundY || by <= 0) return true;
   for (const pipe of pipes) {
-    const bottomY = pipe.gapTop + CONFIG.gapHeight;
+    const gapTop  = pipe.gapTop + pipe.yOffset;
+    const bottomY = gapTop + CONFIG.gapHeight;
     const px = pipe.x + PI;
     const pw = pipe.width - PI * 2;
     if (bx + bw > px && bx < px + pw) {
-      if (by < pipe.gapTop || by + bh > bottomY) return true;
+      if (by < gapTop || by + bh > bottomY) return true;
     }
   }
   return false;
@@ -659,9 +672,10 @@ function drawBird() {
 // ============================================================
 function drawSwords() {
   for (const pipe of pipes) {
-    const bottomY = pipe.gapTop + CONFIG.gapHeight;
-    drawSwordMist(pipe.x, pipe.width, pipe.gapTop, bottomY);
-    drawSwordPNG(pipe.x, pipe.width, 0,       pipe.gapTop,             'down');
+    const gapTop  = pipe.gapTop + pipe.yOffset;
+    const bottomY = gapTop + CONFIG.gapHeight;
+    drawSwordMist(pipe.x, pipe.width, gapTop, bottomY);
+    drawSwordPNG(pipe.x, pipe.width, 0,       gapTop,                  'down');
     drawSwordPNG(pipe.x, pipe.width, bottomY, canvas.height - bottomY, 'up');
   }
 }
