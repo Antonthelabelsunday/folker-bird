@@ -339,18 +339,20 @@ function drawPixelBird(x, y, s, wing) {
 }
 
 function spawnPixelBirdGroup() {
+  const slots = 2 - bgPixelBirds.length; // never exceed 2 on screen
+  if (slots <= 0) return;
+
   const fromLeft  = Math.random() > 0.5;
-  const count     = 1 + Math.floor(Math.random() * 5); // 1–5 birds
+  const count     = Math.min(slots, 1 + Math.floor(Math.random() * 2)); // 1–2 but capped
   const baseY     = canvas.height * (0.05 + Math.random() * 0.55);
   const baseSpeed = 0.8 + Math.random() * 2.2;
 
   for (let i = 0; i < count; i++) {
-    const s     = 1 + Math.floor(Math.random() * 4); // pixel size 1–4
-    const speed = baseSpeed * (0.8 + Math.random() * 0.4);
+    const s = 1 + Math.floor(Math.random() * 4);
     bgPixelBirds.push({
       x:       fromLeft ? -20 : canvas.width + 20,
       y:       baseY + (Math.random() - 0.5) * 40,
-      vx:      fromLeft ? speed : -speed,
+      vx:      fromLeft ? baseSpeed : -baseSpeed,
       s,
       wing:    Math.random() * Math.PI * 2,
       wingSpd: 0.06 + Math.random() * 0.08,
