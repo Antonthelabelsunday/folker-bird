@@ -305,64 +305,82 @@ const BIRD_FRAMES = [0, 3, 6, 3].map(i => {
 });
 
 let bgPixelBirds = [];
-let nextBirdSpawn = 0; // timestamp for next spawn event
+let nextBirdSpawn = 0; // timestamp for next individual bird spawn
 
-// Draw bird frame — sprite faces LEFT; flip when flying right
-function drawPixelBird(x, y, s, frameIdx, flyingRight) {
+// Sprite faces LEFT natively.
+// flyingRight=true  → bird travels left-to-right  → flip horizontally so it faces right
+// flyingRight=false → bird travels right-to-left  → no flip, already faces left
+function drawPixelBird(x, y, sizePx, frameIdx, flyingRight) {
   const frame = BIRD_FRAMES[frameIdx % BIRD_FRAMES.length];
   if (!frame.complete || !frame.naturalWidth) return;
-  const size = s * 18;               // smaller: s=1→18px, s=2→36px, s=3→54px
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.translate(Math.round(x), Math.round(y));
-  if (flyingRight) ctx.scale(-1, 1); // flip to face right
-  ctx.drawImage(frame, -size / 2, -size / 2, size, size);
+  if (flyingRight) ctx.scale(-1, 1);
+  ctx.drawImage(frame, -sizePx / 2, -sizePx / 2, sizePx, sizePx);
   ctx.restore();
 }
 
-function spawnPixelBirdGroup() {
-  const slots = 2 - bgPixelBirds.length; // never exceed 2 on screen
-  if (slots <= 0) return;
+function spawnOneBird() {
+  if (bgPixelBirds.length >= 2) return; // hard cap: max 2 on screen
 
-  const fromLeft  = Math.random() > 0.5;
-  const count     = Math.min(slots, 1 + Math.floor(Math.random() * 2)); // 1–2 but capped
-  const baseSpeed = 0.8 + Math.random() * 2.2;
-  const MIN_Y_DIST = 80; // px — minimum vertical gap between any two birds
-
-  for (let i = 0; i < count; i++) {
-    // Try up to 8 times to find a Y that's far enough from all existing birds
-    let candidateY;
-    for (let attempt = 0; attempt < 8; attempt++) {
-      candidateY = canvas.height * (0.05 + Math.random() * 0.80);
-      const tooClose = bgPixelBirds.some(b => Math.abs(b.y - candidateY) < MIN_Y_DIST);
-      if (!tooClose) break;
-    }
-    const s = 1 + Math.floor(Math.random() * 2); // size 1–2 (keep small)
-    bgPixelBirds.push({
-      x:          fromLeft ? -40 : canvas.width + 40,
-      y:          candidateY,
-      vx:         fromLeft ? baseSpeed : -baseSpeed,
-      s,
-      frame:      Math.floor(Math.random() * 10), // start on random frame
-      frameTimer: 0,
-      frameDelay: 80 + Math.random() * 40,        // ms per animation frame (~10fps)
-    });
+  // Direction — bias away from the last bird's direction to avoid parallel feel
+  const lastDir = bgPixelBirds.length > 0 ? Math.sign(bgPixelBirds[bgPixelBirds.length - 1].vx) : 0;
+  let fromLeft;
+  if (lastDir === 0) {
+    fromLeft = Math.random() > 0.5;
+  } else {
+    // 75% chance to come from opposite side to the last bird
+    fromLeft = lastDir > 0 ? Math.random() > 0.25 : Math.random() > 0.75;
   }
+
+  // Speed — ensure it differs from any existing bird's speed by at least 0.4
+  let speed;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    speed = 0.7 + Math.random() * 1.8; // range 0.7–2.5 px/frame (all slow = distant)
+    const tooSimilar = bgPixelBirds.some(b => Math.abs(Math.abs(b.vx) - speed) < 0.4);
+    if (!tooSimilar) break;
+  }
+
+  // Y position — spread across sky (5%–82%), min 100px from any existing bird
+  let candidateY;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    candidateY = canvas.height * (0.05 + Math.random() * 0.77);
+    const tooClose = bgPixelBirds.some(b => Math.abs(b.y - candidateY) < 100);
+    if (!tooClose) break;
+  }
+
+  // Size — small range: 10–18px. Subtle, distant-feeling.
+  const sizePx = 10 + Math.random() * 8; // 10–18 px
+
+  bgPixelBirds.push({
+    x:          fromLeft ? -30 : canvas.width + 30,
+    y:          candidateY,
+    vx:         fromLeft ? speed : -speed,
+    sizePx,
+    frame:      Math.floor(Math.random() * BIRD_FRAMES.length),
+    frameTimer: 0,
+    // Slightly randomise flap speed per bird so they don't sync
+    frameDelay: 90 + Math.random() * 60,
+  });
 }
 
 function updatePixelBirds(now) {
-  // Random spawn: next event fires between 4 and 18 seconds from now
+  // Spawn one bird at a time on a random interval — avoids synchronized groups
   if (now >= nextBirdSpawn) {
-    spawnPixelBirdGroup();
-    nextBirdSpawn = now + 4000 + Math.random() * 14000;
+    spawnOneBird();
+    // Next spawn attempt: 5–20 s. If screen already has 2, nothing spawns but timer resets.
+    nextBirdSpawn = now + 5000 + Math.random() * 15000;
   }
 
+  // Remove birds that have fully left the screen
   bgPixelBirds = bgPixelBirds.filter(b =>
-    b.x > -100 && b.x < canvas.width + 100
+    b.x > -60 && b.x < canvas.width + 60
   );
+
   bgPixelBirds.forEach(b => {
     b.x += b.vx;
-    b.frameTimer += 16; // ~60fps tick in ms
+    b.frameTimer += 16;
     if (b.frameTimer >= b.frameDelay) {
       b.frameTimer = 0;
       b.frame = (b.frame + 1) % BIRD_FRAMES.length;
@@ -372,7 +390,7 @@ function updatePixelBirds(now) {
 
 function drawPixelBirds() {
   bgPixelBirds.forEach(b => {
-    drawPixelBird(b.x, b.y, b.s, b.frame, b.vx > 0);
+    drawPixelBird(b.x, b.y, b.sizePx, b.frame, b.vx > 0);
   });
 }
 
