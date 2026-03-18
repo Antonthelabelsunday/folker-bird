@@ -297,45 +297,24 @@ function playFlapSound() {
 // ============================================================
 // PIXELATED BACKGROUND BIRDS
 // ============================================================
+const birdAnimImg = new Image();
+birdAnimImg.src = 'bird_anim.webp';   // animated WebP, transparent bg
+
 let bgPixelBirds = [];
 let nextBirdSpawn = 0; // timestamp for next spawn event
 
-// Pixel bird silhouette — crow/gull shape with flapping wings
-// s = pixel block size, wing = sine phase for flap animation
-function drawPixelBird(x, y, s, wing) {
-  const f  = Math.round(Math.sin(wing) * 2.5) * s; // outer wing tip flap
-  const cx = Math.round(x);
-  const cy = Math.round(y);
+// Draw bird using the animated WebP sprite (it self-animates in the browser)
+// s controls rendered size; sprite source is 1024×576 with bird in a ~263×255 region
+function drawPixelBird(x, y, s, _wing) {
+  if (!birdAnimImg.complete || !birdAnimImg.naturalWidth) return;
+  // The bird occupies roughly the top-left 35% of the 1024×576 source frame
+  const sw = 263, sh = 255, sx = 308, sy = 32; // source crop
+  const dw = sw * s * 0.14;   // scale down — s=1→~37px wide, s=4→~147px
+  const dh = sh * s * 0.14;
+  ctx.save();
   ctx.imageSmoothingEnabled = false;
-
-  // ── OUTER LEFT WING (flaps up/down) ──
-  ctx.fillRect(cx - 9*s, cy - 2*s + f, 4*s, s);
-  ctx.fillRect(cx - 8*s, cy - 3*s + f, 2*s, s);
-
-  // ── INNER LEFT WING (fixed) ──
-  ctx.fillRect(cx - 5*s, cy - s,       3*s, s);
-  ctx.fillRect(cx - 4*s, cy,           2*s, s);
-
-  // ── OUTER RIGHT WING (flaps) ──
-  ctx.fillRect(cx + 4*s, cy - 2*s + f, 4*s, s);
-  ctx.fillRect(cx + 5*s, cy - 3*s + f, 2*s, s);
-
-  // ── INNER RIGHT WING (fixed) ──
-  ctx.fillRect(cx + 1*s, cy - s,       3*s, s);
-  ctx.fillRect(cx + 2*s, cy,           2*s, s);
-
-  // ── BODY ──
-  ctx.fillRect(cx - 2*s, cy - 2*s, 5*s, s);
-  ctx.fillRect(cx - 2*s, cy - s,   5*s, s);
-  ctx.fillRect(cx - 1*s, cy,       3*s, s);
-
-  // ── HEAD ──
-  ctx.fillRect(cx - 3*s, cy - 3*s, 2*s, 2*s);
-  ctx.fillRect(cx - 4*s, cy - 2*s, s,   s);   // beak
-
-  // ── TAIL ──
-  ctx.fillRect(cx + 2*s, cy + s,   3*s, s);
-  ctx.fillRect(cx + 3*s, cy + 2*s, 2*s, s);
+  ctx.drawImage(birdAnimImg, sx, sy, sw, sh, Math.round(x - dw/2), Math.round(y - dh/2), Math.round(dw), Math.round(dh));
+  ctx.restore();
 }
 
 function spawnPixelBirdGroup() {
