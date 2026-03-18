@@ -356,11 +356,15 @@ function spawnPipe() {
 // ============================================================
 function gameLoop(timestamp) {
   if (!lastTimestamp) lastTimestamp = timestamp;
-  frameTime    += timestamp - lastTimestamp;
-  lastTimestamp = timestamp;
+  const rawDelta = timestamp - lastTimestamp;
+  frameTime     += rawDelta;
+  lastTimestamp  = timestamp;
+
+  // Normalise to 60 fps so the game runs identically on 60 Hz and 120 Hz screens
+  const delta = Math.min(rawDelta / (1000 / 60), 2.5);
 
   updateAtmosphere();
-  if (gameState === 'playing') update();
+  if (gameState === 'playing') update(delta);
   draw();
 
   requestAnimationFrame(gameLoop);
@@ -369,7 +373,7 @@ function gameLoop(timestamp) {
 // ============================================================
 // UPDATE
 // ============================================================
-function update() {
+function update(delta = 1) {
   if (!started) return;
 
   // Expire flap state once the timer runs out
@@ -377,11 +381,11 @@ function update() {
     flapActive = false;
   }
 
-  bird.velocity += CONFIG.gravity;
-  bird.y        += bird.velocity;
+  bird.velocity += CONFIG.gravity * delta;
+  bird.y        += bird.velocity * delta;
 
   for (let i = pipes.length - 1; i >= 0; i--) {
-    pipes[i].x -= CONFIG.pipeSpeed;
+    pipes[i].x -= CONFIG.pipeSpeed * delta;
     if (!pipes[i].passed && pipes[i].x + pipes[i].width < bird.x) {
       pipes[i].passed = true;
       score++;
