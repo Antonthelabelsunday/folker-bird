@@ -398,8 +398,8 @@ function update() {
 // ============================================================
 function checkCollision() {
   // Shrink collision boxes so near-misses feel fair
-  const BI = 14; // bird inset px on each side
-  const PI = 10; // pipe inset px on each side (horizontal)
+  const BI = 22; // bird inset px on each side
+  const PI = 16; // pipe inset px on each side (horizontal)
 
   const bx = bird.x + BI;
   const by = bird.y + BI;
