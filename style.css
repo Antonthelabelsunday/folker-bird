@@ -13,7 +13,7 @@ body {
   align-items: center;
   min-height: 100vh;
   /* 'fixed' breaks on iOS Safari — use scroll instead */
-  background: #e8e8e8 url('clouds.jpeg') center center / cover no-repeat scroll;
+  background: #f0eeea url('bg_surround.png') center center / cover no-repeat scroll;
   font-family: Arial, sans-serif;
   overflow: hidden;
   touch-action: none; /* prevents pull-to-refresh and scroll bounce */
