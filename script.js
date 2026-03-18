@@ -300,22 +300,42 @@ function playFlapSound() {
 let bgPixelBirds = [];
 let nextBirdSpawn = 0; // timestamp for next spawn event
 
-// Seagull M-shape — two wings meeting at a body centre
+// Pixel bird silhouette — crow/gull shape with flapping wings
 // s = pixel block size, wing = sine phase for flap animation
 function drawPixelBird(x, y, s, wing) {
-  const tip = Math.round(Math.sin(wing) * s * 1.8); // outer tips flap up/down
-  const cx  = Math.round(x);
-  const cy  = Math.round(y);
+  const f  = Math.round(Math.sin(wing) * 2.5) * s; // outer wing tip flap
+  const cx = Math.round(x);
+  const cy = Math.round(y);
   ctx.imageSmoothingEnabled = false;
 
-  // Left outer wing (tips move with flap)
-  ctx.fillRect(cx - 4*s, cy - s - tip, 2*s, s);
-  // Left inner wing (fixed — creates the M dip)
-  ctx.fillRect(cx - 2*s, cy - s,       2*s, s);
-  // Right inner wing
-  ctx.fillRect(cx,       cy - s,       2*s, s);
-  // Right outer wing
-  ctx.fillRect(cx + 2*s, cy - s - tip, 2*s, s);
+  // ── OUTER LEFT WING (flaps up/down) ──
+  ctx.fillRect(cx - 9*s, cy - 2*s + f, 4*s, s);
+  ctx.fillRect(cx - 8*s, cy - 3*s + f, 2*s, s);
+
+  // ── INNER LEFT WING (fixed) ──
+  ctx.fillRect(cx - 5*s, cy - s,       3*s, s);
+  ctx.fillRect(cx - 4*s, cy,           2*s, s);
+
+  // ── OUTER RIGHT WING (flaps) ──
+  ctx.fillRect(cx + 4*s, cy - 2*s + f, 4*s, s);
+  ctx.fillRect(cx + 5*s, cy - 3*s + f, 2*s, s);
+
+  // ── INNER RIGHT WING (fixed) ──
+  ctx.fillRect(cx + 1*s, cy - s,       3*s, s);
+  ctx.fillRect(cx + 2*s, cy,           2*s, s);
+
+  // ── BODY ──
+  ctx.fillRect(cx - 2*s, cy - 2*s, 5*s, s);
+  ctx.fillRect(cx - 2*s, cy - s,   5*s, s);
+  ctx.fillRect(cx - 1*s, cy,       3*s, s);
+
+  // ── HEAD ──
+  ctx.fillRect(cx - 3*s, cy - 3*s, 2*s, 2*s);
+  ctx.fillRect(cx - 4*s, cy - 2*s, s,   s);   // beak
+
+  // ── TAIL ──
+  ctx.fillRect(cx + 2*s, cy + s,   3*s, s);
+  ctx.fillRect(cx + 3*s, cy + 2*s, 2*s, s);
 }
 
 function spawnPixelBirdGroup() {
