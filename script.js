@@ -7,7 +7,7 @@ const CONFIG = {
   pipeSpeed:    2.8,
   pipeInterval: 1600,
   pipeWidth:    52,   // base sword width
-  gapHeight:    200,
+  gapHeight:    160,
   birdX:        80,
   birdSize:     60,
   groundHeight: 20,
