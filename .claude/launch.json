@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flappy-folker",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["server.py", "9876"],
+      "port": 9876
+    }
+  ]
+}
