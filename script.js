@@ -826,8 +826,8 @@ async function confirmName() {
   const name      = input.value.trim().toUpperCase();
   if (!name) { input.focus(); return; }
 
-  // Returning player on same device — skip uniqueness check
-  if (localStorage.getItem('folkerbird_name') === name) {
+  // Returning player with same name and games remaining — skip uniqueness check
+  if (localStorage.getItem('folkerbird_name') === name && getGamesPlayed() < MAX_GAMES_PER_NAME) {
     playerName = name;
     hideOverlay('name-overlay');
     showOverlay('start-overlay');
@@ -981,15 +981,11 @@ document.getElementById('player-name-input').addEventListener('input', () => {
 document.getElementById('start-btn').addEventListener('click',   startGame);
 document.getElementById('restart-btn').addEventListener('click', restartGame);
 
-// On load: if name already saved, pre-fill and skip name screen
+// On load: always show name screen, but pre-fill if returning player
 if (playerName) {
   document.getElementById('player-name-input').value = playerName;
-  hideOverlay('name-overlay');
-  showOverlay('start-overlay');
-} else {
-  // Focus the input so the keyboard comes up immediately on mobile
-  setTimeout(() => document.getElementById('player-name-input').focus(), 400);
 }
+setTimeout(() => document.getElementById('player-name-input').focus(), 400);
 
 // ============================================================
 // HELPERS
