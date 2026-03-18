@@ -54,9 +54,9 @@ let frameTime = 0; // ms accumulator for animation cycles
 
 // --- Parallax cloud layers (back → front) ---
 const CLOUD_LAYERS = [
-  { speed: 0.07, sx: 2.4, sy: 0.65, op: 0.14, count: 5 },
-  { speed: 0.16, sx: 1.9, sy: 0.90, op: 0.10, count: 4 },
-  { speed: 0.28, sx: 1.4, sy: 1.15, op: 0.07, count: 3 },
+  { speed: 0.07, sx: 2.4, sy: 0.65, op: 0.38, count: 5 },
+  { speed: 0.16, sx: 1.9, sy: 0.90, op: 0.30, count: 4 },
+  { speed: 0.28, sx: 1.4, sy: 1.15, op: 0.22, count: 3 },
 ];
 let clouds = [];
 
@@ -76,24 +76,25 @@ function buildClouds() {
 }
 buildClouds();
 
-// --- Animated light rays from upper-right ---
-const RAY_SRC = { x: canvas.width * 0.70, y: -18 };
+// --- Animated light rays from upper-centre — angelic downward shafts ---
+const RAY_SRC = { x: canvas.width * 0.50, y: -30 };
 const RAYS = [
-  { a: -0.62, w: 0.22, base: 0.052, ph: 0.0 },
-  { a: -0.30, w: 0.15, base: 0.070, ph: 1.2 },
-  { a:  0.04, w: 0.26, base: 0.048, ph: 2.5 },
-  { a:  0.36, w: 0.13, base: 0.038, ph: 0.8 },
-  { a:  0.68, w: 0.19, base: 0.046, ph: 1.9 },
+  { a: -0.72, w: 0.28, base: 0.14, ph: 0.0 },
+  { a: -0.38, w: 0.20, base: 0.18, ph: 1.2 },
+  { a: -0.08, w: 0.32, base: 0.22, ph: 2.5 },
+  { a:  0.22, w: 0.18, base: 0.16, ph: 0.8 },
+  { a:  0.52, w: 0.24, base: 0.13, ph: 1.9 },
+  { a:  0.82, w: 0.16, base: 0.10, ph: 3.1 },
 ];
 
-// --- Dust motes ---
-const DUST = Array.from({ length: 38 }, () => ({
+// --- Dust motes / golden light particles ---
+const DUST = Array.from({ length: 55 }, () => ({
   x:  Math.random() * 400,
   y:  Math.random() * 600,
-  r:  0.5 + Math.random() * 1.5,
-  vx: (Math.random() - 0.5) * 0.12,
-  vy: -(0.07 + Math.random() * 0.24),
-  op: 0.07 + Math.random() * 0.28,
+  r:  0.8 + Math.random() * 2.2,
+  vx: (Math.random() - 0.5) * 0.14,
+  vy: -(0.06 + Math.random() * 0.20),
+  op: 0.18 + Math.random() * 0.55,
 }));
 
 // ============================================================
@@ -192,46 +193,67 @@ function updateAtmosphere() {
 // BACKGROUND DRAWING
 // ============================================================
 function drawBackground() {
-  // 0. Bright warm-white base
-  ctx.fillStyle = '#f0f4f8';
+  // 0. Warm angelic white base
+  ctx.fillStyle = '#fffef8';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 1. Single image, slightly oversized, floats on sine waves — no reset, no seam
+  // 1. Background image — floats gently
   if (bgImg.complete && bgImg.naturalWidth > 0) {
-    const pad  = 30; // px of extra room on each side for the float travel
+    const pad   = 30;
     const drawW = canvas.width  + pad * 2;
     const drawH = canvas.height + pad * 2;
-    // Two independent sine waves at different speeds/phases → feels organic
-    const ox = Math.sin(bgTime * 1.0)               * pad; // ±30 px horizontal
-    const oy = Math.sin(bgTime * 0.7 + 1.2) * pad * 0.6;  // ±18 px vertical
+    const ox = Math.sin(bgTime * 1.0)        * pad;
+    const oy = Math.sin(bgTime * 0.7 + 1.2)  * pad * 0.6;
+    // Brighten the bg image with an overlay tint
+    ctx.globalAlpha = 0.55;
     ctx.drawImage(bgImg, -pad + ox, -pad + oy, drawW, drawH);
+    ctx.globalAlpha = 1.0;
   }
 
-  // 2. Strong central light bloom — punches up the brightness
-  const bloom = ctx.createRadialGradient(
-    canvas.width * 0.5, canvas.height * 0.28, 0,
-    canvas.width * 0.5, canvas.height * 0.28, canvas.width * 0.85
-  );
-  bloom.addColorStop(0,   'rgba(255,252,240,0.72)');
-  bloom.addColorStop(0.4, 'rgba(255,250,235,0.30)');
-  bloom.addColorStop(1,   'rgba(255,250,235,0.00)');
-  ctx.fillStyle = bloom;
+  // 2. Heavenly light shaft from top-centre downward
+  const shaft = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.75);
+  shaft.addColorStop(0,   'rgba(255,252,230,0.88)');
+  shaft.addColorStop(0.3, 'rgba(255,250,220,0.55)');
+  shaft.addColorStop(0.7, 'rgba(255,248,210,0.18)');
+  shaft.addColorStop(1,   'rgba(255,248,210,0.00)');
+  ctx.fillStyle = shaft;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 3. God rays
+  // 3. Pulsing central aureole — breathing angelic glow
+  const pulse = 0.82 + 0.18 * Math.sin(frameTime * 0.0012);
+  const aureole = ctx.createRadialGradient(
+    canvas.width * 0.5, canvas.height * 0.32, 0,
+    canvas.width * 0.5, canvas.height * 0.32, canvas.width * 1.0
+  );
+  aureole.addColorStop(0,   `rgba(255,252,220,${0.78 * pulse})`);
+  aureole.addColorStop(0.35, `rgba(255,248,210,${0.42 * pulse})`);
+  aureole.addColorStop(0.65, `rgba(220,235,255,${0.18 * pulse})`);
+  aureole.addColorStop(1,    'rgba(220,235,255,0.00)');
+  ctx.fillStyle = aureole;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 4. God rays
   drawRays();
 
-  // 4. Soft cloud puffs
+  // 5. Luminous cloud puffs
   drawClouds();
 
-  // 5. Floating dust motes
+  // 6. Golden dust / light particles
   drawDust();
 
-  // 6. Top-edge glow to push brightness at the sky top
-  const topGlow = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.45);
-  topGlow.addColorStop(0,   'rgba(255,255,255,0.45)');
-  topGlow.addColorStop(1,   'rgba(255,255,255,0.00)');
-  ctx.fillStyle = topGlow;
+  // 7. Top blinding white flood — sun above the clouds
+  const topFlood = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.5);
+  topFlood.addColorStop(0,   'rgba(255,255,255,0.82)');
+  topFlood.addColorStop(0.18, 'rgba(255,253,235,0.48)');
+  topFlood.addColorStop(1,   'rgba(255,253,235,0.00)');
+  ctx.fillStyle = topFlood;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 8. Soft warm vignette at bottom — keeps it from feeling cut off
+  const btmGlow = ctx.createLinearGradient(0, canvas.height * 0.65, 0, canvas.height);
+  btmGlow.addColorStop(0,  'rgba(255,248,220,0.00)');
+  btmGlow.addColorStop(1,  'rgba(255,248,220,0.38)');
+  ctx.fillStyle = btmGlow;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -241,15 +263,16 @@ function drawRays() {
   const len = canvas.width * 3;
   const t   = frameTime * 0.001;
   RAYS.forEach(r => {
-    const op = r.base + 0.022 * Math.sin(t + r.ph);
+    const op = r.base + 0.06 * Math.sin(t + r.ph);
     const a1 = r.a - r.w / 2, a2 = r.a + r.w / 2;
     const x1 = RAY_SRC.x + Math.cos(a1) * len;
     const y1 = RAY_SRC.y + Math.sin(a1) * len;
     const x2 = RAY_SRC.x + Math.cos(a2) * len;
     const y2 = RAY_SRC.y + Math.sin(a2) * len;
     const g  = ctx.createLinearGradient(RAY_SRC.x, RAY_SRC.y, (x1 + x2) / 2, (y1 + y2) / 2);
-    g.addColorStop(0, `rgba(255,248,215,${op})`);
-    g.addColorStop(1,  'rgba(255,248,215,0)');
+    g.addColorStop(0,   `rgba(255,250,210,${op})`);
+    g.addColorStop(0.4, `rgba(255,248,200,${op * 0.5})`);
+    g.addColorStop(1,    'rgba(255,248,200,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(RAY_SRC.x, RAY_SRC.y);
@@ -303,10 +326,21 @@ function drawFog() {
 
 function drawDust() {
   ctx.save();
+  ctx.globalCompositeOperation = 'screen';
   DUST.forEach(p => {
+    // Soft golden glow halo behind each mote
+    const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+    glow.addColorStop(0,   `rgba(255,240,160,${p.op})`);
+    glow.addColorStop(0.4, `rgba(255,235,140,${p.op * 0.4})`);
+    glow.addColorStop(1,    'rgba(255,235,140,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
+    ctx.fill();
+    // Bright white core
+    ctx.fillStyle = `rgba(255,255,240,${Math.min(p.op * 1.4, 1)})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,252,240,${p.op})`;
     ctx.fill();
   });
   ctx.restore();
@@ -508,8 +542,8 @@ function drawSwordMist(x, w, gapTop, bottomY) {
 
   [[cx, gapTop], [cx, bottomY]].forEach(([mx, my]) => {
     const g = ctx.createRadialGradient(mx, my, 0, mx, my, mistR);
-    g.addColorStop(0, 'rgba(195,215,255,0.20)');
-    g.addColorStop(1, 'rgba(195,215,255,0.00)');
+    g.addColorStop(0, 'rgba(210,230,255,0.45)');
+    g.addColorStop(1, 'rgba(210,230,255,0.00)');
     ctx.fillStyle = g;
     ctx.fillRect(mx - mistR, my - mistR, mistR * 2, mistR * 2);
   });
@@ -522,8 +556,8 @@ function drawSwordPNG(x, w, y, h, dir) {
   ctx.save();
 
   // Metallic glow aura
-  ctx.shadowColor = 'rgba(185, 210, 255, 0.55)';
-  ctx.shadowBlur  = 16;
+  ctx.shadowColor = 'rgba(200, 225, 255, 0.90)';
+  ctx.shadowBlur  = 32;
   ctx.globalCompositeOperation = 'multiply';
 
   if (dir === 'down') {
