@@ -512,7 +512,6 @@ function gameLoop(timestamp) {
   const delta = Math.min(rawDelta / (1000 / 60), 2.5);
 
   updateAtmosphere();
-  updateBgSwallows(timestamp);
   if (gameState === 'playing') update(delta);
   draw();
 
