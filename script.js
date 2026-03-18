@@ -807,12 +807,83 @@ async function showLeaderboard(myName, myScore) {
 // ============================================================
 // GAME STATE TRANSITIONS
 // ============================================================
-function confirmName() {
-  const input = document.getElementById('player-name-input');
-  const name  = input.value.trim().toUpperCase();
+let nameAttempts = 0;
+const MAX_NAME_ATTEMPTS = 5;
+const MAX_GAMES_PER_NAME = 5;
+
+function getGamesPlayed() {
+  return parseInt(localStorage.getItem('folkerbird_gamecount') || '0', 10);
+}
+function incrementGamesPlayed() {
+  localStorage.setItem('folkerbird_gamecount', getGamesPlayed() + 1);
+}
+function resetGamesPlayed() {
+  localStorage.setItem('folkerbird_gamecount', '0');
+}
+
+async function confirmName() {
+  const input     = document.getElementById('player-name-input');
+  const label     = document.querySelector('.name-label');
+  const btn       = document.getElementById('name-confirm-btn');
+  const name      = input.value.trim().toUpperCase();
   if (!name) { input.focus(); return; }
-  playerName = name;
+
+  // Returning player on same device — skip uniqueness check
+  if (localStorage.getItem('folkerbird_name') === name) {
+    playerName = name;
+    hideOverlay('name-overlay');
+    showOverlay('start-overlay');
+    return;
+  }
+
+  // Disable button while checking
+  btn.style.opacity = '0.4';
+  btn.style.pointerEvents = 'none';
+  label.textContent = 'CHECKING…';
+  label.style.color = '';
+
+  const nameKey = name.replace(/[.#$[\]/]/g, '-');
+  let taken = false;
+
+  try {
+    const r = await fetch(`${FIREBASE_URL}/names/${encodeURIComponent(nameKey)}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ts: Date.now() })
+    });
+    taken = (r.status === 403);
+  } catch(e) {
+    console.warn('Name check failed, allowing anyway', e);
+  }
+
+  btn.style.opacity  = '1';
+  btn.style.pointerEvents = '';
+
+  if (taken) {
+    nameAttempts++;
+    const left = MAX_NAME_ATTEMPTS - nameAttempts;
+    if (left <= 0) {
+      // Out of tries — just let them in with a number appended
+      const fallback = name.slice(0, 12) + (Math.floor(Math.random() * 90) + 10);
+      playerName = fallback;
+      localStorage.setItem('folkerbird_name', fallback);
+      hideOverlay('name-overlay');
+      showOverlay('start-overlay');
+      return;
+    }
+    label.textContent = `NAME TAKEN — ${left} TRY${left === 1 ? '' : 'S'} LEFT`;
+    label.style.color = 'rgba(255,90,90,0.95)';
+    input.select();
+    return;
+  }
+
+  // Name is free — proceed
+  label.textContent  = 'ENTER YOUR NAME';
+  label.style.color  = '';
+  nameAttempts       = 0;
+  playerName         = name;
   localStorage.setItem('folkerbird_name', name);
+  resetGamesPlayed();
   hideOverlay('name-overlay');
   showOverlay('start-overlay');
 }
@@ -827,17 +898,44 @@ function startGame() {
 async function triggerGameOver() {
   gameState = 'gameover';
   clearInterval(pipeTimerId);
+  incrementGamesPlayed();
+  const gamesLeft = MAX_GAMES_PER_NAME - getGamesPlayed();
+
   document.getElementById('final-score').textContent = `Score: ${score}`;
+
+  // Show how many games remain on the restart button area
+  const restartBtn = document.getElementById('restart-btn');
+  if (gamesLeft <= 0) {
+    restartBtn.style.opacity = '0.5';
+    document.getElementById('games-left-msg').textContent = 'NAME EXPIRED — PICK A NEW ONE';
+  } else {
+    restartBtn.style.opacity = '1';
+    document.getElementById('games-left-msg').textContent =
+      gamesLeft === 1 ? 'LAST GAME WITH THIS NAME' : `${gamesLeft} GAMES LEFT WITH THIS NAME`;
+  }
+
   showOverlay('gameover-overlay');
-  // Save + load leaderboard in background
   saveLocalScore(playerName, score);
-  submitToFirebase(playerName, score);   // fire-and-forget
-  showLeaderboard(playerName, score);    // updates UI when ready
+  submitToFirebase(playerName, score);
+  showLeaderboard(playerName, score);
 }
 
 function restartGame() {
   clearInterval(pipeTimerId);
-  startGame();
+  if (getGamesPlayed() >= MAX_GAMES_PER_NAME) {
+    // Name expired — force new name
+    localStorage.removeItem('folkerbird_name');
+    playerName = '';
+    document.getElementById('player-name-input').value = '';
+    const label = document.querySelector('.name-label');
+    label.textContent = 'ENTER YOUR NAME';
+    label.style.color = '';
+    hideOverlay('gameover-overlay');
+    showOverlay('name-overlay');
+    setTimeout(() => document.getElementById('player-name-input').focus(), 300);
+  } else {
+    startGame();
+  }
 }
 
 // ============================================================
@@ -875,6 +973,11 @@ canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleFlap();
 document.getElementById('name-confirm-btn').addEventListener('click', confirmName);
 document.getElementById('player-name-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') confirmName();
+});
+document.getElementById('player-name-input').addEventListener('input', () => {
+  const label = document.querySelector('.name-label');
+  label.textContent = 'ENTER YOUR NAME';
+  label.style.color = '';
 });
 
 document.getElementById('start-btn').addEventListener('click',   startGame);

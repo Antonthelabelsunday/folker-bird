@@ -181,3 +181,12 @@ body {
   font-size: 0.82rem;
   letter-spacing: 2px;
 }
+
+.games-left-msg {
+  font-size: 0.72rem !important;
+  letter-spacing: 2px !important;
+  color: rgba(255,255,255,0.55) !important;
+  font-weight: normal !important;
+  text-shadow: none !important;
+  margin: -8px 0 0 0 !important;
+}
