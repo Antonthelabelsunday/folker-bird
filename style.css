@@ -12,7 +12,7 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #0d0d0d;
+  background: #e8e8e8 url('clouds.jpeg') center center / cover no-repeat fixed;
   font-family: Arial, sans-serif;
 }
 
