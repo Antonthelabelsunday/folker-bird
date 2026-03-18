@@ -26,7 +26,7 @@ const ctx    = canvas.getContext('2d');
 const fogVideo = document.getElementById('fogVideo');
 fogVideo.src = 'fog.mp4';
 
-const bgImg          = new Image(); bgImg.src          = 'clouds.jpeg';
+const bgImg          = new Image(); bgImg.src          = 'bg.png';
 const birdImg        = new Image(); birdImg.src        = 'bird.png';   // idle pose
 const flapImg        = new Image(); flapImg.src        = 'flap.png';   // flap pose (transparent bg)
 const swordImg       = new Image(); swordImg.src       = 'sword.png';
@@ -209,9 +209,9 @@ function drawBackground() {
 
   // 2. Heavenly light shaft from top-centre downward
   const shaft = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.75);
-  shaft.addColorStop(0,   'rgba(255,252,230,0.88)');
-  shaft.addColorStop(0.3, 'rgba(255,250,220,0.55)');
-  shaft.addColorStop(0.7, 'rgba(255,248,210,0.18)');
+  shaft.addColorStop(0,   'rgba(255,252,230,0.55)');
+  shaft.addColorStop(0.3, 'rgba(255,250,220,0.30)');
+  shaft.addColorStop(0.7, 'rgba(255,248,210,0.08)');
   shaft.addColorStop(1,   'rgba(255,248,210,0.00)');
   ctx.fillStyle = shaft;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -238,10 +238,10 @@ function drawBackground() {
   // 6. Golden dust / light particles
   drawDust();
 
-  // 7. Top blinding white flood — sun above the clouds
+  // 7. Soft top glow — sun above the clouds
   const topFlood = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.5);
-  topFlood.addColorStop(0,   'rgba(255,255,255,0.82)');
-  topFlood.addColorStop(0.18, 'rgba(255,253,235,0.48)');
+  topFlood.addColorStop(0,   'rgba(255,255,255,0.45)');
+  topFlood.addColorStop(0.18, 'rgba(255,253,235,0.22)');
   topFlood.addColorStop(1,   'rgba(255,253,235,0.00)');
   ctx.fillStyle = topFlood;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
