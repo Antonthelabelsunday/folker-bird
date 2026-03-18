@@ -507,9 +507,12 @@ function spawnPipe() {
   let gapSize = CONFIG.gapHeight;
   let pSpeed  = 0.022 + Math.random() * 0.01;
 
-  if (score >= 30) {
+  // Variation is capped at the 60+ tier — past 100 only speed increases
+  const varScore = Math.min(score, 99);
+
+  if (varScore >= 30) {
     const roll = Math.random();
-    if (score >= 60) {
+    if (varScore >= 60) {
       // 60+: extreme variation
       if (roll < 0.25) {
         pSpeed = 0;                              // completely still
@@ -589,9 +592,10 @@ function update(delta = 1) {
     // Vertical oscillation kicks in at score 40
     if (score >= 30 && pipe.phaseSpeed > 0) {
       pipe.phase += pipe.phaseSpeed * delta;
-      const amplitude = score >= 60
-        ? Math.min(45, (score - 60) * 0.8 + 30)  // bigger swings at 60+
-        : Math.min(20, (score - 30) * 0.4 + 8);  // gentle at 30–59
+      const vs = Math.min(score, 99); // cap variation growth at 100
+      const amplitude = vs >= 60
+        ? Math.min(45, (vs - 60) * 0.8 + 30)
+        : Math.min(20, (vs - 30) * 0.4 + 8);
       pipe.yOffset = Math.sin(pipe.phase) * amplitude;
     }
 
