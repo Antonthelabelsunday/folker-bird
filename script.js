@@ -732,8 +732,88 @@ function drawTitle() {
 }
 
 // ============================================================
+// LEADERBOARD — Firebase Realtime DB (free tier) + localStorage fallback
+// ============================================================
+// To enable global leaderboard:
+//   1. go to https://console.firebase.google.com
+//   2. Create project → Realtime Database → Start in TEST MODE
+//   3. Paste your database URL below (e.g. https://folker-bird-default-rtdb.firebaseio.com)
+const FIREBASE_URL = 'https://folker-bird-default-rtdb.firebaseio.com';
+
+let playerName = localStorage.getItem('folkerbird_name') || '';
+
+function getLocalScores() {
+  try { return JSON.parse(localStorage.getItem('folkerbird_lb') || '[]'); }
+  catch { return []; }
+}
+function saveLocalScore(name, sc) {
+  const arr = getLocalScores();
+  arr.push({ name, score: sc, ts: Date.now() });
+  arr.sort((a, b) => b.score - a.score);
+  localStorage.setItem('folkerbird_lb', JSON.stringify(arr.slice(0, 200)));
+}
+
+async function submitToFirebase(name, sc) {
+  if (!FIREBASE_URL) return;
+  try {
+    await fetch(`${FIREBASE_URL}/scores.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, score: sc, ts: Date.now() })
+    });
+  } catch(e) { console.warn('Firebase submit failed', e); }
+}
+
+async function fetchTopScores() {
+  if (FIREBASE_URL) {
+    try {
+      const r = await fetch(`${FIREBASE_URL}/scores.json?orderBy="score"&limitToLast=20`);
+      const data = await r.json();
+      if (data && typeof data === 'object') {
+        return Object.values(data).sort((a, b) => b.score - a.score).slice(0, 10);
+      }
+    } catch(e) { /* fall through to local */ }
+  }
+  return getLocalScores().slice(0, 10);
+}
+
+async function showLeaderboard(myName, myScore) {
+  const el = document.getElementById('leaderboard');
+  el.innerHTML = '<div class="lb-loading">Loading…</div>';
+
+  const scores = await fetchTopScores();
+
+  // Check if the player's current score appears in the list
+  const myEntry = scores.find(s => s.name === myName && s.score === myScore);
+
+  let html = `<div class="lb-header"><span>RANK</span><span style="flex:1">NAME</span><span>SCORE</span></div>`;
+  html += scores.map((s, i) => {
+    const isMe = s.name === myName && s.score === myScore && !myEntry._used
+      ? (myEntry._used = true, true) : (s === myEntry && !s._used ? (s._used = true, true) : false);
+    return `<div class="lb-row ${s.name === myName && s.score === myScore ? 'me' : ''}">
+      <span class="lb-rank">${i + 1}</span>
+      <span class="lb-name">${s.name}</span>
+      <span class="lb-score">${s.score}</span>
+    </div>`;
+  }).join('');
+
+  if (!scores.length) html += '<div class="lb-loading" style="opacity:.45">No scores yet</div>';
+  el.innerHTML = html;
+}
+
+// ============================================================
 // GAME STATE TRANSITIONS
 // ============================================================
+function confirmName() {
+  const input = document.getElementById('player-name-input');
+  const name  = input.value.trim().toUpperCase();
+  if (!name) { input.focus(); return; }
+  playerName = name;
+  localStorage.setItem('folkerbird_name', name);
+  hideOverlay('name-overlay');
+  showOverlay('start-overlay');
+}
+
 function startGame() {
   gameState = 'playing';
   hideOverlay('start-overlay');
@@ -741,11 +821,15 @@ function startGame() {
   initGame();
 }
 
-function triggerGameOver() {
+async function triggerGameOver() {
   gameState = 'gameover';
   clearInterval(pipeTimerId);
   document.getElementById('final-score').textContent = `Score: ${score}`;
   showOverlay('gameover-overlay');
+  // Save + load leaderboard in background
+  saveLocalScore(playerName, score);
+  submitToFirebase(playerName, score);   // fire-and-forget
+  showLeaderboard(playerName, score);    // updates UI when ready
 }
 
 function restartGame() {
@@ -763,14 +847,12 @@ function handleFlap() {
       spawnPipe();
       pipeTimerId = setInterval(spawnPipe, CONFIG.pipeInterval);
     }
-    // Mark flap state active for FLAP_DURATION ms
     flapActive   = true;
     flapEndTime  = Date.now() + FLAP_DURATION;
     lastFlapTime = Date.now();
     startMusic();
     playFlapSound();
 
-    // Restart flap video from frame 0 on every tap (if loaded)
     if (flapVideo.readyState >= 2) {
       flapVideo.currentTime = 0;
       flapVideo.play().catch(() => {});
@@ -786,8 +868,21 @@ document.addEventListener('keydown', (e) => {
 canvas.addEventListener('click',      handleFlap);
 canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleFlap(); }, { passive: false });
 
+// Name entry
+document.getElementById('name-confirm-btn').addEventListener('click', confirmName);
+document.getElementById('player-name-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') confirmName();
+});
+
 document.getElementById('start-btn').addEventListener('click',   startGame);
 document.getElementById('restart-btn').addEventListener('click', restartGame);
+
+// On load: if name already saved, skip name screen
+if (playerName) {
+  document.getElementById('player-name-input').value = playerName;
+  hideOverlay('name-overlay');
+  showOverlay('start-overlay');
+}
 
 // ============================================================
 // HELPERS

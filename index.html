@@ -15,8 +15,21 @@
   <div id="game-container">
     <canvas id="gameCanvas" width="400" height="600"></canvas>
 
+    <!-- Name entry screen (shown first) -->
+    <div id="name-overlay" class="overlay">
+      <div class="overlay-content">
+        <img src="title.png" class="ui-title" alt="Folmer Bird" />
+        <div class="name-entry-box">
+          <p class="name-label">ENTER YOUR NAME</p>
+          <input type="text" id="player-name-input" maxlength="14"
+                 autocomplete="off" spellcheck="false" placeholder="YOUR NAME" />
+          <img src="presstoplay.png" class="ui-presstoplay" id="name-confirm-btn" alt="Confirm" />
+        </div>
+      </div>
+    </div>
+
     <!-- Start screen -->
-    <div id="start-overlay" class="overlay" id="start-overlay">
+    <div id="start-overlay" class="overlay hidden">
       <div class="overlay-content">
         <img src="title.png" class="ui-title" alt="Folmer Bird" />
         <img src="presstoplay.png" class="ui-presstoplay" alt="Press to Play" id="start-btn" />
@@ -28,20 +41,23 @@
       <div class="overlay-content">
         <img src="title.png" class="ui-title" alt="Folmer Bird" />
         <p id="final-score">Score: 0</p>
+        <div id="leaderboard" class="leaderboard">
+          <div class="lb-loading">Loading scores…</div>
+        </div>
         <img src="presstoplay.png" class="ui-presstoplay" alt="Play Again" id="restart-btn" />
       </div>
     </div>
   </div>
 
-  <!-- Flap animation video — loaded via blob, played once per tap -->
+  <!-- Flap animation video -->
   <video id="flapVideo" muted playsinline preload="auto"
          style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0"></video>
 
-  <!-- Fog/atmosphere overlay — loops continuously -->
+  <!-- Fog/atmosphere overlay -->
   <video id="fogVideo" autoplay loop muted playsinline
          style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0"></video>
 
-  <!-- Background music — starts on first user interaction to satisfy autoplay policy -->
+  <!-- Background music -->
   <audio id="bgMusic" src="music.m4a" loop preload="auto"></audio>
 
   <script src="script.js"></script>
