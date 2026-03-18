@@ -297,23 +297,32 @@ function playFlapSound() {
 // ============================================================
 // PIXELATED BACKGROUND BIRDS
 // ============================================================
-const birdAnimImg = new Image();
-birdAnimImg.src = 'bird_anim.webp';   // animated WebP, transparent bg
+// 4-frame flap cycle: wings up → level → down → level → repeat
+const BIRD_FRAMES = [0, 3, 6, 3].map(i => {
+  const img = new Image();
+  img.src = `bird_f${i}.png`;
+  return img;
+});
 
 let bgPixelBirds = [];
 let nextBirdSpawn = 0; // timestamp for next spawn event
 
-// Draw bird using the animated WebP sprite (it self-animates in the browser)
-// s controls rendered size; sprite source is 1024×576 with bird in a ~263×255 region
-function drawPixelBird(x, y, s, _wing) {
-  if (!birdAnimImg.complete || !birdAnimImg.naturalWidth) return;
-  // The bird occupies roughly the top-left 35% of the 1024×576 source frame
-  const sw = 263, sh = 255, sx = 308, sy = 32; // source crop
-  const dw = sw * s * 0.14;   // scale down — s=1→~37px wide, s=4→~147px
-  const dh = sh * s * 0.14;
+// Draw bird frame — each frame is a 320×320 PNG centred on the bird
+// s=1→28px, s=2→56px, s=3→84px  |  facingRight flips the sprite
+function drawPixelBird(x, y, s, frameIdx, facingRight) {
+  const frame = BIRD_FRAMES[frameIdx % BIRD_FRAMES.length];
+  if (!frame.complete || !frame.naturalWidth) return;
+  const size = s * 28;
+  const dx   = Math.round(x - size / 2);
+  const dy   = Math.round(y - size / 2);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(birdAnimImg, sx, sy, sw, sh, Math.round(x - dw/2), Math.round(y - dh/2), Math.round(dw), Math.round(dh));
+  if (facingRight) {
+    // Flip horizontally around bird centre
+    ctx.translate(Math.round(x) * 2, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(frame, dx, dy, size, size);
   ctx.restore();
 }
 
@@ -327,14 +336,15 @@ function spawnPixelBirdGroup() {
   const baseSpeed = 0.8 + Math.random() * 2.2;
 
   for (let i = 0; i < count; i++) {
-    const s = 1 + Math.floor(Math.random() * 4);
+    const s = 1 + Math.floor(Math.random() * 3); // size 1–3 (smaller)
     bgPixelBirds.push({
-      x:       fromLeft ? -20 : canvas.width + 20,
-      y:       baseY + (Math.random() - 0.5) * 40,
-      vx:      fromLeft ? baseSpeed : -baseSpeed,
+      x:         fromLeft ? -40 : canvas.width + 40,
+      y:         baseY + (Math.random() - 0.5) * 40,
+      vx:        fromLeft ? baseSpeed : -baseSpeed,
       s,
-      wing:    Math.random() * Math.PI * 2,
-      wingSpd: 0.06 + Math.random() * 0.08,
+      frame:     Math.floor(Math.random() * 10), // start on random frame
+      frameTimer: 0,
+      frameDelay: 80 + Math.random() * 40,       // ms per animation frame (~10fps)
     });
   }
 }
@@ -347,19 +357,21 @@ function updatePixelBirds(now) {
   }
 
   bgPixelBirds = bgPixelBirds.filter(b =>
-    b.x > -60 && b.x < canvas.width + 60
+    b.x > -100 && b.x < canvas.width + 100
   );
   bgPixelBirds.forEach(b => {
-    b.x    += b.vx;
-    b.wing += b.wingSpd;
+    b.x += b.vx;
+    b.frameTimer += 16; // ~60fps tick in ms
+    if (b.frameTimer >= b.frameDelay) {
+      b.frameTimer = 0;
+      b.frame = (b.frame + 1) % BIRD_FRAMES.length;
+    }
   });
 }
 
 function drawPixelBirds() {
-  if (!bgPixelBirds.length) return;
-  ctx.fillStyle = 'rgba(10,10,10,0.82)';
   bgPixelBirds.forEach(b => {
-    drawPixelBird(b.x, b.y, b.s, b.wing);
+    drawPixelBird(b.x, b.y, b.s, b.frame, b.vx > 0);
   });
 }
 
