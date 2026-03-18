@@ -1,0 +1,634 @@
+// ============================================================
+// CONFIGURATION
+// ============================================================
+const CONFIG = {
+  gravity:      0.45,
+  flapStrength: -8.5,
+  pipeSpeed:    2.8,
+  pipeInterval: 1600,
+  pipeWidth:    52,   // base sword width
+  gapHeight:    200,
+  birdX:        80,
+  birdSize:     60,
+  groundHeight: 20,
+};
+
+// ============================================================
+// CANVAS SETUP
+// ============================================================
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+// ============================================================
+// ASSETS
+// ============================================================
+// Fog video — moov at front, streams directly (no blob needed)
+const fogVideo = document.getElementById('fogVideo');
+fogVideo.src = 'fog.mp4';
+
+const bgImg          = new Image(); bgImg.src          = 'bg.png';
+const birdImg        = new Image(); birdImg.src        = 'bird.png';   // idle pose
+const flapImg        = new Image(); flapImg.src        = 'flap.png';   // flap pose (transparent bg)
+const swordImg       = new Image(); swordImg.src       = 'sword.png';
+const titleImg       = new Image(); titleImg.src       = 'title.png';
+const pressToPlayImg = new Image(); pressToPlayImg.src = 'presstoplay.png';
+
+// ============================================================
+// FLAP VIDEO — loaded as blob so moov-at-end is not a problem
+// ============================================================
+const flapVideo = document.getElementById('flapVideo');
+// No flapVideoReady flag — drawBird() checks flapVideo.readyState >= 2 directly.
+fetch('flap.mp4')
+  .then(r => r.blob())
+  .then(blob => {
+    flapVideo.src = URL.createObjectURL(blob);
+    flapVideo.load();
+  });
+
+// ============================================================
+// ATMOSPHERE — clouds, rays, dust
+// ============================================================
+let bgPanY = 0; // unused — kept for reference
+let bgTime = 0; // drives smooth sine-based float
+let frameTime = 0; // ms accumulator for animation cycles
+
+// --- Parallax cloud layers (back → front) ---
+const CLOUD_LAYERS = [
+  { speed: 0.07, sx: 2.4, sy: 0.65, op: 0.14, count: 5 },
+  { speed: 0.16, sx: 1.9, sy: 0.90, op: 0.10, count: 4 },
+  { speed: 0.28, sx: 1.4, sy: 1.15, op: 0.07, count: 3 },
+];
+let clouds = [];
+
+function buildClouds() {
+  clouds = [];
+  CLOUD_LAYERS.forEach((layer, li) => {
+    for (let i = 0; i < layer.count; i++) {
+      clouds.push({
+        li,
+        x:     Math.random() * canvas.width,
+        y:     20 + Math.random() * canvas.height * 0.58,
+        r:     30 + Math.random() * 52,
+        puffs: 2 + Math.floor(Math.random() * 3),
+      });
+    }
+  });
+}
+buildClouds();
+
+// --- Animated light rays from upper-right ---
+const RAY_SRC = { x: canvas.width * 0.70, y: -18 };
+const RAYS = [
+  { a: -0.62, w: 0.22, base: 0.052, ph: 0.0 },
+  { a: -0.30, w: 0.15, base: 0.070, ph: 1.2 },
+  { a:  0.04, w: 0.26, base: 0.048, ph: 2.5 },
+  { a:  0.36, w: 0.13, base: 0.038, ph: 0.8 },
+  { a:  0.68, w: 0.19, base: 0.046, ph: 1.9 },
+];
+
+// --- Dust motes ---
+const DUST = Array.from({ length: 38 }, () => ({
+  x:  Math.random() * 400,
+  y:  Math.random() * 600,
+  r:  0.5 + Math.random() * 1.5,
+  vx: (Math.random() - 0.5) * 0.12,
+  vy: -(0.07 + Math.random() * 0.24),
+  op: 0.07 + Math.random() * 0.28,
+}));
+
+// ============================================================
+// GAME STATE
+// ============================================================
+let gameState = 'waiting';
+let pipes, score, pipeTimerId, lastTimestamp, started;
+let lastFlapTime = 0;
+
+// Bird initialised immediately so drawBird() works before startGame()
+let bird = {
+  x:        CONFIG.birdX,
+  y:        canvas.height / 2 - CONFIG.birdSize / 2,
+  width:    CONFIG.birdSize,
+  height:   CONFIG.birdSize,
+  velocity: 0,
+};
+
+// Explicit flap state — separate from physics velocity
+let flapActive  = false;
+let flapEndTime = 0;
+const FLAP_DURATION = 220; // ms
+
+// Web Audio context
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+// Background music — starts on first interaction (browser autoplay policy)
+const bgMusic = document.getElementById('bgMusic');
+bgMusic.volume = 0.5;
+let musicStarted = false;
+function startMusic() {
+  if (musicStarted) return;
+  musicStarted = true;
+  bgMusic.play().catch(() => {});
+}
+// Preload ding sound as decoded audio buffer
+let dingBuffer = null;
+fetch('ding.wav')
+  .then(r => r.arrayBuffer())
+  .then(ab => audioCtx.decodeAudioData(ab))
+  .then(buf => { dingBuffer = buf; });
+
+function playDing() {
+  if (!dingBuffer) return;
+  const src = audioCtx.createBufferSource();
+  src.buffer = dingBuffer;
+  src.connect(audioCtx.destination);
+  src.start();
+}
+
+function playFlapSound() {
+  const dur    = 0.13; // seconds
+  const frames = Math.floor(audioCtx.sampleRate * dur);
+  const buf    = audioCtx.createBuffer(1, frames, audioCtx.sampleRate);
+  const data   = buf.getChannelData(0);
+  for (let i = 0; i < frames; i++) {
+    // white noise shaped with a quick exponential decay
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / frames, 1.8);
+  }
+  const src    = audioCtx.createBufferSource();
+  src.buffer   = buf;
+  const lp     = audioCtx.createBiquadFilter();
+  lp.type      = 'lowpass';
+  lp.frequency.value = 900;
+  const gain   = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.28, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  src.connect(lp); lp.connect(gain); gain.connect(audioCtx.destination);
+  src.start();
+}
+
+// ============================================================
+// ATMOSPHERE UPDATE
+// ============================================================
+function updateAtmosphere() {
+  bgTime += 0.0004; // very slow — full cycle takes ~15 700 frames
+
+  clouds.forEach(c => {
+    c.x -= CLOUD_LAYERS[c.li].speed;
+    if (c.x + c.r * 3 < 0) {
+      c.x = canvas.width + c.r * 2;
+      c.y = 20 + Math.random() * canvas.height * 0.58;
+      c.r = 30 + Math.random() * 52;
+    }
+  });
+
+  DUST.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.y < -4) { p.y = canvas.height + 4; p.x = Math.random() * canvas.width; }
+    if (p.x < 0)  p.x = canvas.width;
+    if (p.x > canvas.width) p.x = 0;
+  });
+}
+
+// ============================================================
+// BACKGROUND DRAWING
+// ============================================================
+function drawBackground() {
+  // 0. Bright warm-white base
+  ctx.fillStyle = '#f0f4f8';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 1. Single image, slightly oversized, floats on sine waves — no reset, no seam
+  if (bgImg.complete && bgImg.naturalWidth > 0) {
+    const pad  = 30; // px of extra room on each side for the float travel
+    const drawW = canvas.width  + pad * 2;
+    const drawH = canvas.height + pad * 2;
+    // Two independent sine waves at different speeds/phases → feels organic
+    const ox = Math.sin(bgTime * 1.0)               * pad; // ±30 px horizontal
+    const oy = Math.sin(bgTime * 0.7 + 1.2) * pad * 0.6;  // ±18 px vertical
+    ctx.drawImage(bgImg, -pad + ox, -pad + oy, drawW, drawH);
+  }
+
+  // 2. Strong central light bloom — punches up the brightness
+  const bloom = ctx.createRadialGradient(
+    canvas.width * 0.5, canvas.height * 0.28, 0,
+    canvas.width * 0.5, canvas.height * 0.28, canvas.width * 0.85
+  );
+  bloom.addColorStop(0,   'rgba(255,252,240,0.72)');
+  bloom.addColorStop(0.4, 'rgba(255,250,235,0.30)');
+  bloom.addColorStop(1,   'rgba(255,250,235,0.00)');
+  ctx.fillStyle = bloom;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 3. God rays
+  drawRays();
+
+  // 4. Soft cloud puffs
+  drawClouds();
+
+  // 5. Floating dust motes
+  drawDust();
+
+  // 6. Top-edge glow to push brightness at the sky top
+  const topGlow = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.45);
+  topGlow.addColorStop(0,   'rgba(255,255,255,0.45)');
+  topGlow.addColorStop(1,   'rgba(255,255,255,0.00)');
+  ctx.fillStyle = topGlow;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawRays() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  const len = canvas.width * 3;
+  const t   = frameTime * 0.001;
+  RAYS.forEach(r => {
+    const op = r.base + 0.022 * Math.sin(t + r.ph);
+    const a1 = r.a - r.w / 2, a2 = r.a + r.w / 2;
+    const x1 = RAY_SRC.x + Math.cos(a1) * len;
+    const y1 = RAY_SRC.y + Math.sin(a1) * len;
+    const x2 = RAY_SRC.x + Math.cos(a2) * len;
+    const y2 = RAY_SRC.y + Math.sin(a2) * len;
+    const g  = ctx.createLinearGradient(RAY_SRC.x, RAY_SRC.y, (x1 + x2) / 2, (y1 + y2) / 2);
+    g.addColorStop(0, `rgba(255,248,215,${op})`);
+    g.addColorStop(1,  'rgba(255,248,215,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(RAY_SRC.x, RAY_SRC.y);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.closePath();
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawClouds() {
+  ctx.save();
+  clouds.forEach(c => {
+    const L = CLOUD_LAYERS[c.li];
+    const puff = (ox, oy, rx, ry) => {
+      const px = c.x + ox, py = c.y + oy;
+      const rr = Math.max(rx, ry);
+      const g  = ctx.createRadialGradient(px, py, 0, px, py, rr);
+      g.addColorStop(0,   `rgba(255,255,255,${L.op})`);
+      g.addColorStop(0.55, `rgba(255,255,255,${L.op * 0.35})`);
+      g.addColorStop(1,    'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    const rx = c.r * L.sx, ry = c.r * L.sy;
+    puff(0,            0,          rx,        ry);
+    puff( rx * 0.52,  -ry * 0.28,  rx * 0.62, ry * 0.70);
+    puff(-rx * 0.42,   ry * 0.12,  rx * 0.52, ry * 0.62);
+    for (let i = 0; i < c.puffs - 2; i++) {
+      const sign = i % 2 === 0 ? 1 : -1;
+      puff(sign * rx * (0.22 + i * 0.24), -ry * 0.18 * (i + 1),
+           rx * Math.max(0.15, 0.42 - i * 0.06),
+           ry * Math.max(0.15, 0.52 - i * 0.06));
+    }
+  });
+  ctx.restore();
+}
+
+function drawFog() {
+  if (fogVideo.readyState < 2) return;
+  ctx.save();
+  // screen blend: black bg of video → transparent, bright fog → visible
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = 0.35; // reduced — fog adds atmosphere without darkening
+  ctx.drawImage(fogVideo, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+
+function drawDust() {
+  ctx.save();
+  DUST.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,252,240,${p.op})`;
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function initGame() {
+  bird = {
+    x:        CONFIG.birdX,
+    y:        canvas.height / 2 - CONFIG.birdSize / 2,
+    width:    CONFIG.birdSize,
+    height:   CONFIG.birdSize,
+    velocity: 0,
+  };
+  pipes         = [];
+  score         = 0;
+  lastTimestamp = null;
+  started       = false;
+  flapActive    = false;
+  flapEndTime   = 0;
+  clearInterval(pipeTimerId);
+}
+
+// ============================================================
+// PIPE / SWORD SPAWNING
+// ============================================================
+function spawnPipe() {
+  if (gameState !== 'playing') return;
+  const groundY    = canvas.height - CONFIG.groundHeight;
+  const minGapTop  = 60;
+  const maxGapTop  = groundY - CONFIG.gapHeight - 60;
+  // Each sword pair gets a slight width variation for organic feel
+  const widthScale = 0.82 + Math.random() * 0.38;
+  pipes.push({
+    x:          canvas.width,
+    gapTop:     Math.random() * (maxGapTop - minGapTop) + minGapTop,
+    width:      Math.round(CONFIG.pipeWidth * widthScale),
+    passed:     false,
+    widthScale,
+  });
+}
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+function gameLoop(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  frameTime    += timestamp - lastTimestamp;
+  lastTimestamp = timestamp;
+
+  updateAtmosphere();
+  if (gameState === 'playing') update();
+  draw();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+function update() {
+  if (!started) return;
+
+  // Expire flap state once the timer runs out
+  if (flapActive && Date.now() >= flapEndTime) {
+    flapActive = false;
+  }
+
+  bird.velocity += CONFIG.gravity;
+  bird.y        += bird.velocity;
+
+  for (let i = pipes.length - 1; i >= 0; i--) {
+    pipes[i].x -= CONFIG.pipeSpeed;
+    if (!pipes[i].passed && pipes[i].x + pipes[i].width < bird.x) {
+      pipes[i].passed = true;
+      score++;
+      playDing();
+    }
+    if (pipes[i].x + pipes[i].width < 0) pipes.splice(i, 1);
+  }
+
+  if (checkCollision()) triggerGameOver();
+}
+
+// ============================================================
+// COLLISION
+// ============================================================
+function checkCollision() {
+  const groundY = canvas.height - CONFIG.groundHeight;
+  if (bird.y + bird.height >= groundY || bird.y <= 0) return true;
+  for (const pipe of pipes) {
+    const bottomY = pipe.gapTop + CONFIG.gapHeight;
+    if (bird.x + bird.width > pipe.x && bird.x < pipe.x + pipe.width) {
+      if (bird.y < pipe.gapTop || bird.y + bird.height > bottomY) return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================
+// DRAW
+// ============================================================
+function draw() {
+  drawBackground();
+
+  // Fog overlay — drawn above sky, below swords and bird
+  drawFog();
+
+  if (gameState === 'playing' || gameState === 'gameover') {
+    drawSwords();
+  }
+  // Bird always visible so player sees it before first tap
+  drawBird();
+
+  // Ground collision handled in code — no visual cut needed
+
+  if (gameState === 'playing') {
+    if (!started) drawReadyHint();
+    else          drawScore();
+  }
+
+  drawTitle();
+}
+
+// ============================================================
+// BIRD
+// ============================================================
+function drawBird() {
+  const cx = bird.x + bird.width  / 2;
+  const cy = bird.y + bird.height / 2;
+  const hw = bird.width  / 2;  // 30 px
+  const hh = bird.height / 2;  // 30 px
+
+  // --- TILT ---
+  // flapActive: instant -30° nose-up, eases to 0 over FLAP_DURATION
+  // falling:    0° → +70° based on physics velocity
+  let tiltDeg;
+  if (flapActive) {
+    const pct = Math.max(0, (flapEndTime - Date.now()) / FLAP_DURATION);
+    tiltDeg = -30 * pct;
+  } else {
+    tiltDeg = Math.min(bird.velocity * 3.5, 70);
+  }
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(tiltDeg * Math.PI / 180);
+
+  // --- BODY ---
+  if (flapActive && flapImg.complete && flapImg.naturalWidth > 0) {
+    // Flap sprite — mirrored horizontally
+    ctx.scale(-1, 1);
+    ctx.drawImage(flapImg, -hw, -hh, bird.width, bird.height);
+    ctx.scale(-1, 1); // restore
+  } else if (birdImg.complete && birdImg.naturalWidth > 0) {
+    // Idle sprite — white bg PNG, use multiply to erase white
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(birdImg, -hw, -hh, bird.width, bird.height);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  ctx.restore();
+}
+
+// ============================================================
+// SWORD OBSTACLES — PNG + glow + mist + width variation
+// ============================================================
+function drawSwords() {
+  for (const pipe of pipes) {
+    const bottomY = pipe.gapTop + CONFIG.gapHeight;
+    drawSwordMist(pipe.x, pipe.width, pipe.gapTop, bottomY);
+    drawSwordPNG(pipe.x, pipe.width, 0,       pipe.gapTop,             'down');
+    drawSwordPNG(pipe.x, pipe.width, bottomY, canvas.height - bottomY, 'up');
+  }
+}
+
+// Soft radial glow/mist at each blade tip
+function drawSwordMist(x, w, gapTop, bottomY) {
+  ctx.save();
+  const cx    = x + w / 2;
+  const mistR = w * 3.2;
+
+  [[cx, gapTop], [cx, bottomY]].forEach(([mx, my]) => {
+    const g = ctx.createRadialGradient(mx, my, 0, mx, my, mistR);
+    g.addColorStop(0, 'rgba(195,215,255,0.20)');
+    g.addColorStop(1, 'rgba(195,215,255,0.00)');
+    ctx.fillStyle = g;
+    ctx.fillRect(mx - mistR, my - mistR, mistR * 2, mistR * 2);
+  });
+  ctx.restore();
+}
+
+// Draw one sword (top = flipped, bottom = normal)
+function drawSwordPNG(x, w, y, h, dir) {
+  if (!swordImg.complete || swordImg.naturalWidth === 0 || h <= 0) return;
+  ctx.save();
+
+  // Metallic glow aura
+  ctx.shadowColor = 'rgba(185, 210, 255, 0.55)';
+  ctx.shadowBlur  = 16;
+  ctx.globalCompositeOperation = 'multiply';
+
+  if (dir === 'down') {
+    // Tip points downward — flip vertically around its centre
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.scale(1, -1);
+    ctx.drawImage(swordImg, -w / 2, -h / 2, w, h);
+  } else {
+    ctx.drawImage(swordImg, x, y, w, h);
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+}
+
+// ============================================================
+// HUD
+// ============================================================
+function drawReadyHint() {
+  if (!pressToPlayImg.complete || pressToPlayImg.naturalWidth === 0) return;
+  // presstoplay.png is 933×243 — draw at 280px wide, centred
+  const w = 280;
+  const h = Math.round(w * 243 / 933); // maintain aspect ratio ≈ 73px
+  const x = (canvas.width - w) / 2;
+  const y = canvas.height / 2 - 100;
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  ctx.drawImage(pressToPlayImg, x, y, w, h);
+  ctx.restore();
+}
+
+function drawScore() {
+  ctx.save();
+  ctx.textAlign   = 'center';
+  ctx.font        = 'bold 36px Arial';
+  ctx.shadowColor = 'rgba(255,255,255,0.65)';
+  ctx.shadowBlur  = 9;
+  ctx.fillStyle   = '#0c0a07';
+  ctx.fillText(score, canvas.width / 2, 55);
+  ctx.restore();
+}
+
+function drawTitle() {
+  if (!titleImg.complete || titleImg.naturalWidth === 0) return;
+  // title.png is 501×102 — draw at 240px wide, anchored to bottom-centre
+  const w = 240;
+  const h = Math.round(w * 102 / 501); // ≈ 49px
+  const x = (canvas.width - w) / 2;
+  const y = canvas.height - h - 6;
+  ctx.save();
+  ctx.globalAlpha = 0.88;
+  ctx.drawImage(titleImg, x, y, w, h);
+  ctx.restore();
+}
+
+// ============================================================
+// GAME STATE TRANSITIONS
+// ============================================================
+function startGame() {
+  gameState = 'playing';
+  hideOverlay('start-overlay');
+  hideOverlay('gameover-overlay');
+  initGame();
+}
+
+function triggerGameOver() {
+  gameState = 'gameover';
+  clearInterval(pipeTimerId);
+  document.getElementById('final-score').textContent = `Score: ${score}`;
+  showOverlay('gameover-overlay');
+}
+
+function restartGame() {
+  clearInterval(pipeTimerId);
+  startGame();
+}
+
+// ============================================================
+// INPUT
+// ============================================================
+function handleFlap() {
+  if (gameState === 'playing') {
+    if (!started) {
+      started     = true;
+      spawnPipe();
+      pipeTimerId = setInterval(spawnPipe, CONFIG.pipeInterval);
+    }
+    // Mark flap state active for FLAP_DURATION ms
+    flapActive   = true;
+    flapEndTime  = Date.now() + FLAP_DURATION;
+    lastFlapTime = Date.now();
+    startMusic();
+    playFlapSound();
+
+    // Restart flap video from frame 0 on every tap (if loaded)
+    if (flapVideo.readyState >= 2) {
+      flapVideo.currentTime = 0;
+      flapVideo.play().catch(() => {});
+    }
+
+    bird.velocity = CONFIG.flapStrength;
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); handleFlap(); }
+});
+canvas.addEventListener('click',      handleFlap);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleFlap(); }, { passive: false });
+
+document.getElementById('start-btn').addEventListener('click',   startGame);
+document.getElementById('restart-btn').addEventListener('click', restartGame);
+
+// ============================================================
+// HELPERS
+// ============================================================
+function showOverlay(id) { document.getElementById(id).classList.remove('hidden'); }
+function hideOverlay(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ============================================================
+// BOOT
+// ============================================================
+requestAnimationFrame(gameLoop);

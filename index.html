@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Folmer Bird</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div id="game-container">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+    <!-- Start screen -->
+    <div id="start-overlay" class="overlay" id="start-overlay">
+      <div class="overlay-content">
+        <img src="title.png" class="ui-title" alt="Folmer Bird" />
+        <img src="presstoplay.png" class="ui-presstoplay" alt="Press to Play" id="start-btn" />
+      </div>
+    </div>
+
+    <!-- Game over screen -->
+    <div id="gameover-overlay" class="overlay hidden">
+      <div class="overlay-content">
+        <img src="title.png" class="ui-title" alt="Folmer Bird" />
+        <p id="final-score">Score: 0</p>
+        <img src="presstoplay.png" class="ui-presstoplay" alt="Play Again" id="restart-btn" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Flap animation video — loaded via blob, played once per tap -->
+  <video id="flapVideo" muted playsinline preload="auto"
+         style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0"></video>
+
+  <!-- Fog/atmosphere overlay — loops continuously -->
+  <video id="fogVideo" autoplay loop muted playsinline
+         style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0"></video>
+
+  <!-- Background music — starts on first user interaction to satisfy autoplay policy -->
+  <audio id="bgMusic" src="music.m4a" loop preload="auto"></audio>
+
+  <script src="script.js"></script>
+</body>
+</html>
