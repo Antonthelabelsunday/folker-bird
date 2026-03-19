@@ -589,6 +589,7 @@ function initGame() {
   flapActive    = false;
   flapEndTime   = 0;
   clearInterval(pipeTimerId);
+  resetBooster();
 }
 
 // ============================================================
@@ -647,6 +648,183 @@ function spawnPipe() {
 }
 
 // ============================================================
+// BOOSTER — 1000 KR NOTE PICKUP
+// ============================================================
+const noteImg = new Image();
+noteImg.src   = 'note1000.png';
+
+// Booster state
+let boosterNote     = null;   // { x, y, w, h, floatPhase, tiltPhase, shimmerTimer }
+let boostActive     = false;
+let boostEndTime    = 0;
+let nextNoteSpawn   = 0;      // timestamp (ms) after which we may attempt a spawn
+const BOOST_DURATION = 8000; // ms
+const BOOST_SPEED    = 1.55; // multiplier on bird velocity & pipe speed during boost
+const NOTE_W         = 110;  // display width in px
+const NOTE_H         = Math.round(NOTE_W * (840 / 1436)); // keep aspect ratio (~67px)
+
+function resetBooster() {
+  boosterNote  = null;
+  boostActive  = false;
+  boostEndTime = 0;
+  nextNoteSpawn = Date.now() + 8000 + Math.random() * 12000; // first spawn 8–20s in
+}
+
+function trySpawnNote(now) {
+  if (!started) return;
+  if (boosterNote) return;          // one at a time
+  if (boostActive) return;          // no spawn while boost is running
+  if (now < nextNoteSpawn) return;
+
+  // Pick a safe Y: within the playable sky area, avoiding top/bottom margins
+  const groundY  = canvas.height - CONFIG.groundHeight;
+  const minY     = 60;
+  const maxY     = groundY - NOTE_H - 60;
+  const y        = minY + Math.random() * (maxY - minY);
+
+  boosterNote = {
+    x:           canvas.width + 20,    // enter from right
+    y,
+    w:           NOTE_W,
+    h:           NOTE_H,
+    floatPhase:  Math.random() * Math.PI * 2,
+    tiltPhase:   Math.random() * Math.PI * 2,
+    shimmerTimer: 0,
+  };
+}
+
+function updateBooster(now, delta) {
+  trySpawnNote(now);
+
+  if (boosterNote) {
+    const speedMultiplier = Math.pow(1.15, Math.floor(score / 10));
+    // Note drifts left at ~60% of pipe speed so it's catchable
+    boosterNote.x -= CONFIG.pipeSpeed * speedMultiplier * 0.6 * delta;
+    boosterNote.floatPhase += 0.03 * delta;
+    boosterNote.tiltPhase  += 0.018 * delta;
+    boosterNote.shimmerTimer += delta;
+
+    // Despawn if it leaves screen without being collected
+    if (boosterNote.x + boosterNote.w < 0) {
+      boosterNote   = null;
+      nextNoteSpawn = now + 10000 + Math.random() * 15000;
+    }
+
+    // Collision with bird (generous hitbox)
+    const inset = 10;
+    const bx = bird.x + 28, by = bird.y + 28;
+    const bw = bird.width - 56, bh = bird.height - 56;
+    const nx = boosterNote.x + inset, ny = boosterNote.y + inset;
+    const nw = boosterNote.w - inset * 2, nh = boosterNote.h - inset * 2;
+    if (bx + bw > nx && bx < nx + nw && by + bh > ny && by < ny + nh) {
+      collectNote(now);
+    }
+  }
+
+  // Expire boost
+  if (boostActive && now >= boostEndTime) {
+    boostActive = false;
+    nextNoteSpawn = now + 10000 + Math.random() * 15000;
+  }
+}
+
+function collectNote(now) {
+  boosterNote  = null;
+  boostActive  = true;
+  boostEndTime = now + BOOST_DURATION;
+  // Give a little upward nudge so it feels reactive
+  bird.velocity = Math.min(bird.velocity, -2);
+}
+
+function drawBoosterNote() {
+  if (!boosterNote || !noteImg.complete || !noteImg.naturalWidth) return;
+  const n = boosterNote;
+  const floatY  = Math.sin(n.floatPhase)  * 6;   // ±6px vertical float
+  const tilt    = Math.sin(n.tiltPhase)   * 0.07; // ±4° tilt
+
+  ctx.save();
+  ctx.translate(Math.round(n.x + n.w / 2), Math.round(n.y + n.h / 2 + floatY));
+  ctx.rotate(tilt);
+
+  // Shimmer: subtle brightness pulse
+  const shimmer = 0.85 + 0.15 * Math.abs(Math.sin(n.shimmerTimer * 0.08));
+  ctx.globalAlpha = shimmer;
+
+  // Gold glow behind note
+  ctx.shadowColor  = 'rgba(255, 210, 60, 0.7)';
+  ctx.shadowBlur   = 18;
+  ctx.drawImage(noteImg, -n.w / 2, -n.h / 2, n.w, n.h);
+
+  ctx.restore();
+}
+
+function drawBoostEffect(now) {
+  if (!boostActive) return;
+  const remaining = Math.max(0, boostEndTime - now);
+  const frac      = remaining / BOOST_DURATION;
+
+  // ── Aura / shield around bird ──
+  const cx = bird.x + bird.width  / 2;
+  const cy = bird.y + bird.height / 2;
+  const pulse = 1 + 0.08 * Math.sin(now * 0.015);
+  const r     = (bird.width * 0.65) * pulse;
+
+  const grad = ctx.createRadialGradient(cx, cy, r * 0.3, cx, cy, r);
+  grad.addColorStop(0,   'rgba(255, 215, 0, 0.35)');
+  grad.addColorStop(0.6, 'rgba(255, 215, 0, 0.12)');
+  grad.addColorStop(1,   'rgba(255, 215, 0, 0)');
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  // ── Gold trail behind bird ──
+  ctx.save();
+  for (let i = 1; i <= 5; i++) {
+    const tx    = cx - i * 9;
+    const alpha = (0.18 - i * 0.03) * frac;
+    const tr    = (bird.width * 0.35) * (1 - i * 0.12);
+    ctx.beginPath();
+    ctx.arc(tx, cy, Math.max(tr, 2), 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // ── Timer bar at top of canvas ──
+  const barW = canvas.width * 0.55;
+  const barX = (canvas.width - barW) / 2;
+  const barY = 12;
+  const barH = 10;
+
+  ctx.save();
+  // Background track
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW, barH, 5);
+  ctx.fill();
+
+  // Filled portion — gold → green as it drains
+  const r1 = Math.round(255),
+        g1 = Math.round(215 * frac + 80 * (1 - frac)),
+        b1 = 0;
+  ctx.fillStyle = `rgb(${r1},${g1},${b1})`;
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW * frac, barH, 5);
+  ctx.fill();
+
+  // Label
+  ctx.fillStyle    = 'rgba(255,255,255,0.9)';
+  ctx.font         = `bold ${Math.round(9 * (canvas.width / 400))}px Arial`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('BOOST', canvas.width / 2, barY + barH / 2);
+  ctx.restore();
+}
+
+// ============================================================
 // GAME LOOP
 // ============================================================
 function gameLoop(timestamp) {
@@ -659,10 +837,10 @@ function gameLoop(timestamp) {
   const delta = Math.min(rawDelta / (1000 / 60), 2.5);
 
   updateAtmosphere();
-  if (gameState === 'playing') update(delta);
+  if (gameState === 'playing') update(delta, timestamp);
   if (deathAnim) updateDeathAnim();
   updatePixelBirds(timestamp);
-  draw();
+  draw(timestamp);
 
   requestAnimationFrame(gameLoop);
 }
@@ -670,19 +848,21 @@ function gameLoop(timestamp) {
 // ============================================================
 // UPDATE
 // ============================================================
-function update(delta = 1) {
+function update(delta = 1, now = Date.now()) {
   if (!started) return;
 
+  updateBooster(now, delta);
+
   // Expire flap state once the timer runs out
-  if (flapActive && Date.now() >= flapEndTime) {
+  if (flapActive && now >= flapEndTime) {
     flapActive = false;
   }
 
   bird.velocity += CONFIG.gravity * delta;
   bird.y        += bird.velocity * delta;
 
-  // Speed increases 5% every 10 points
-  const speedMultiplier = Math.pow(1.15, Math.floor(score / 10));
+  // Speed increases 15% every 10 points; extra boost multiplier during power-up
+  const speedMultiplier = Math.pow(1.15, Math.floor(score / 10)) * (boostActive ? BOOST_SPEED : 1);
 
   for (let i = pipes.length - 1; i >= 0; i--) {
     const pipe = pipes[i];
@@ -706,7 +886,7 @@ function update(delta = 1) {
     if (pipe.x + pipe.width < 0) pipes.splice(i, 1);
   }
 
-  if (checkCollision()) triggerGameOver();
+  if (!boostActive && checkCollision()) triggerGameOver();
 }
 
 // ============================================================
@@ -739,7 +919,7 @@ function checkCollision() {
 // ============================================================
 // DRAW
 // ============================================================
-function draw() {
+function draw(now = Date.now()) {
   drawBackground();
 
   // Fog overlay — drawn above sky, below swords and bird
@@ -751,12 +931,19 @@ function draw() {
   if (gameState === 'playing' || gameState === 'gameover') {
     drawSwords();
   }
+
+  // Note booster — behind bird but above swords
+  if (gameState === 'playing') drawBoosterNote();
+
   // During death animation hide the live bird; show halves instead
   if (deathAnim) {
     drawDeathAnim();
   } else {
     drawBird();
   }
+
+  // Boost aura/trail on top of bird
+  if (gameState === 'playing') drawBoostEffect(now);
 
   // Ground collision handled in code — no visual cut needed
 
