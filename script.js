@@ -850,11 +850,12 @@ function gameLoop(timestamp) {
   // Normalise to 60 fps so the game runs identically on 60 Hz and 120 Hz screens
   const delta = Math.min(rawDelta / (1000 / 60), 2.5);
 
+  const now = Date.now();
   updateAtmosphere();
-  if (gameState === 'playing') update(delta, timestamp);
+  if (gameState === 'playing') update(delta, now);
   if (deathAnim) updateDeathAnim();
-  updatePixelBirds(timestamp);
-  draw(timestamp);
+  updatePixelBirds(now);
+  draw(now);
 
   requestAnimationFrame(gameLoop);
 }
