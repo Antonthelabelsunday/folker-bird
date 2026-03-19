@@ -798,22 +798,36 @@ function drawBoostEffect(now) {
   const barX = (canvas.width - barW) / 2;
   const barY = 12;
   const barH = 10;
+  const rad  = 5;
+
+  // Safe rounded rect helper (ctx.roundRect not supported on older iOS Safari)
+  function fillRoundRect(x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   ctx.save();
-  // Background track
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath();
-  ctx.roundRect(barX, barY, barW, barH, 5);
-  ctx.fill();
+  fillRoundRect(barX, barY, barW, barH, rad);
 
   // Filled portion — gold → green as it drains
-  const r1 = Math.round(255),
+  const r1 = 255,
         g1 = Math.round(215 * frac + 80 * (1 - frac)),
         b1 = 0;
   ctx.fillStyle = `rgb(${r1},${g1},${b1})`;
-  ctx.beginPath();
-  ctx.roundRect(barX, barY, barW * frac, barH, 5);
-  ctx.fill();
+  if (barW * frac > 0) fillRoundRect(barX, barY, barW * frac, barH, rad);
 
   // Label
   ctx.fillStyle    = 'rgba(255,255,255,0.9)';
