@@ -990,12 +990,51 @@ function resetGamesPlayed() {
   localStorage.setItem('folkerbird_gamecount', '0');
 }
 
+// ── Profanity filter ──────────────────────────────────────────
+// Normalise leet-speak substitutions before checking
+function normaliseLeet(str) {
+  return str
+    .replace(/3/g, 'e').replace(/4/g, 'a').replace(/@/g, 'a')
+    .replace(/1/g, 'i').replace(/!/g, 'i').replace(/0/g, 'o')
+    .replace(/5/g, 's').replace(/\$/g, 's').replace(/7/g, 't')
+    .replace(/8/g, 'b').replace(/9/g, 'g').replace(/\+/g, 't')
+    .replace(/ph/g, 'f');
+}
+
+const BAD_WORDS = [
+  'nigger','nigga','nigg','niga','n1gger','n1gga',
+  'faggot','faget','fagot','fag',
+  'kike','spic','spick','chink','gook','wetback','beaner',
+  'cunt','pussy','cock','dick','bitch','whore','slut',
+  'retard','retarded','tard',
+  'nazi','hitler',
+  'rape','rapist',
+  'tranny','dyke',
+  'coon','jigaboo','porch','sambo',
+  'bastard','asshole','motherfucker','fucker','fuckhead',
+];
+
+function containsBadWord(name) {
+  // Strip spaces/punctuation, normalise leet, then test
+  const cleaned = normaliseLeet(name.toLowerCase().replace(/[\s\-_.]/g, ''));
+  return BAD_WORDS.some(w => cleaned.includes(w));
+}
+// ─────────────────────────────────────────────────────────────
+
 async function confirmName() {
   const input     = document.getElementById('player-name-input');
   const label     = document.querySelector('.name-label');
   const btn       = document.getElementById('name-confirm-btn');
   const name      = input.value.trim().toUpperCase();
   if (!name) { input.focus(); return; }
+
+  // Block slurs / profanity immediately — no Firebase round-trip needed
+  if (containsBadWord(name)) {
+    label.textContent = 'NAME NOT ALLOWED — TRY ANOTHER';
+    label.style.color = 'rgba(255,90,90,0.95)';
+    input.select();
+    return;
+  }
 
   // Returning player with same name and games remaining — skip uniqueness check
   if (localStorage.getItem('folkerbird_name') === name && getGamesPlayed() < MAX_GAMES_PER_NAME) {
