@@ -1002,16 +1002,50 @@ function normaliseLeet(str) {
 }
 
 const BAD_WORDS = [
+  // ── English: racial slurs ──
   'nigger','nigga','nigg','niga','n1gger','n1gga',
-  'faggot','faget','fagot','fag',
   'kike','spic','spick','chink','gook','wetback','beaner',
+  'coon','jigaboo','sambo',
+  // ── English: homophobic/transphobic ──
+  'faggot','faget','fagot','fag','tranny','dyke',
+  // ── English: sexual/body ──
   'cunt','pussy','cock','dick','bitch','whore','slut',
+  // ── English: ableist ──
   'retard','retarded','tard',
+  // ── English: hate/extremism ──
   'nazi','hitler',
+  // ── English: sexual violence ──
   'rape','rapist',
-  'tranny','dyke',
-  'coon','jigaboo','porch','sambo',
+  // ── English: general profanity ──
   'bastard','asshole','motherfucker','fucker','fuckhead',
+
+  // ── Danish: racial slurs ──
+  'perker','perkersvin','perkere',         // slur for Middle Eastern/Asian people
+  'neger','negersvin',                     // Danish n-word equivalent
+  'sorthoved',                             // "black head" — racial slur
+  'jødesvin','jøde',                       // antisemitic slurs
+  'paki',                                  // used as slur in Danish too
+  // ── Danish: homophobic ──
+  'bøsse','bøssesvin',                     // gay (used as slur)
+  'homo','homosvin',
+  // ── Danish: ableist ──
+  'spasser','spas',                        // "spastic" — very common Danish ableist slur
+  'mongol','mongoloid',                    // extremely offensive ableist slur
+  'idiot','kretiner',
+  // ── Danish: sexual/body ──
+  'fisse',                                 // cunt
+  'pik','pikanseret',                      // cock (pikanseret is a false positive risk — leaving pik short)
+  'røvhul','røv',                          // asshole / ass
+  'luder',                                 // whore
+  'kælling',                               // bitch/hag
+  'slambert',                              // slut (Danish)
+  // ── Danish: general profanity ──
+  'lortehoved','lorteunge',                // shithead, shit-tongue
+  'svin','svinehund',                      // pig, pigdog (common insult)
+  'skiderik','skidehoved',                 // shithead variants
+  'forpulede','forpulet',                  // fucking (intensifier slur)
+  'satans','satan',                        // damn/satan (strong profanity in Danish)
+  'helvede',                               // hell (used as strong profanity)
 ];
 
 function containsBadWord(name) {
