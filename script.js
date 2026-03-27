@@ -660,7 +660,7 @@ let boostEndTime    = 0;
 let nextNoteSpawn   = 0;      // timestamp (ms) after which we may attempt a spawn
 const BOOST_DURATION = 8000; // ms
 const BOOST_SPEED    = 1.55; // multiplier on bird velocity & pipe speed during boost
-const NOTE_W         = 110;  // display width in px
+const NOTE_W         = 70;   // display width in px
 const NOTE_H         = Math.round(NOTE_W * (840 / 1436)); // keep aspect ratio (~67px)
 
 function resetBooster() {
@@ -729,6 +729,8 @@ function drawBoosterNote() {
   const tilt    = Math.sin(n.tiltPhase)   * 0.07; // ±4° tilt
 
   ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.translate(Math.round(n.x + n.w / 2), Math.round(n.y + n.h / 2 + floatY));
   ctx.rotate(tilt);
 
@@ -933,15 +935,15 @@ function draw(now = Date.now()) {
     drawSwords();
   }
 
-  // Note booster — behind bird but above swords
-  if (gameState === 'playing') drawBoosterNote();
-
   // During death animation hide the live bird; show halves instead
   if (deathAnim) {
     drawDeathAnim();
   } else {
     drawBird();
   }
+
+  // Note booster — in front of everything (bird, swords, bg)
+  if (gameState === 'playing') drawBoosterNote();
 
   // Boost aura/trail on top of bird
   if (gameState === 'playing') drawBoostEffect(now);
