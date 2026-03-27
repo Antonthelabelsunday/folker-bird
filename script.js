@@ -660,8 +660,8 @@ let boostEndTime    = 0;
 let nextNoteSpawn   = 0;      // timestamp (ms) after which we may attempt a spawn
 const BOOST_DURATION = 8000; // ms
 const BOOST_SPEED    = 1.55; // multiplier on bird velocity & pipe speed during boost
-const NOTE_W         = 70;   // display width in px
-const NOTE_H         = Math.round(NOTE_W * (840 / 1436)); // keep aspect ratio (~67px)
+const NOTE_W         = 52;   // display width in px
+const NOTE_H         = Math.round(NOTE_W * (840 / 1436)); // keep aspect ratio
 
 function resetBooster() {
   boosterNote  = null;
@@ -683,7 +683,7 @@ function trySpawnNote(now) {
   const y        = minY + Math.random() * (maxY - minY);
 
   boosterNote = {
-    x:           canvas.width + 20,    // enter from right
+    x:           canvas.width * (0.55 + Math.random() * 0.3), // fixed spot in right half
     y,
     w:           NOTE_W,
     h:           NOTE_H,
@@ -697,15 +697,14 @@ function updateBooster(now, delta) {
   trySpawnNote(now);
 
   if (boosterNote) {
-    const speedMultiplier = Math.pow(1.15, Math.floor(score / 10));
-    // Note drifts left at ~60% of pipe speed so it's catchable
-    boosterNote.x -= CONFIG.pipeSpeed * speedMultiplier * 0.6 * delta;
-    boosterNote.floatPhase += 0.03 * delta;
-    boosterNote.tiltPhase  += 0.018 * delta;
+    // Stationary pickup — no horizontal drift
+    boosterNote.floatPhase   += 0.03 * delta;
+    boosterNote.tiltPhase    += 0.018 * delta;
     boosterNote.shimmerTimer += delta;
 
-    // Despawn if it leaves screen without being collected
-    if (boosterNote.x + boosterNote.w < 0) {
+    // Despawn after 12 seconds if not collected
+    if (!boosterNote.spawnTime) boosterNote.spawnTime = now;
+    if (now - boosterNote.spawnTime > 12000) {
       boosterNote   = null;
       nextNoteSpawn = now + 10000 + Math.random() * 15000;
     }
