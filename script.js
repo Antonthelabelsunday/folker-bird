@@ -723,24 +723,119 @@ function collectNote(now) {
 
 function drawBoosterNote() {
   if (!boosterNote || !noteImg.complete || !noteImg.naturalWidth) return;
-  const n = boosterNote;
-  const floatY  = Math.sin(n.floatPhase)  * 6;   // ±6px vertical float
-  const tilt    = Math.sin(n.tiltPhase)   * 0.07; // ±4° tilt
+  const n  = boosterNote;
+  const t  = n.shimmerTimer * 0.016; // approx seconds
+  const floatY = Math.sin(n.floatPhase) * 5;
+  const tilt   = Math.sin(n.tiltPhase)  * 0.055; // ~3°
+  const cx = n.x + n.w / 2;
+  const cy = n.y + n.h / 2 + floatY;
+  const hw = n.w / 2;
+  const hh = n.h / 2;
 
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.translate(Math.round(n.x + n.w / 2), Math.round(n.y + n.h / 2 + floatY));
+
+  // ── 1. OUTER PULSING HALO ──────────────────────────────────
+  const haloR     = n.w * 0.92;
+  const haloAlpha = 0.22 + 0.10 * Math.sin(t * 2.0);
+  const halo      = ctx.createRadialGradient(cx, cy, haloR * 0.15, cx, cy, haloR);
+  halo.addColorStop(0,   `rgba(255, 215, 50, ${haloAlpha + 0.15})`);
+  halo.addColorStop(0.5, `rgba(255, 180, 0,  ${haloAlpha})`);
+  halo.addColorStop(1,   'rgba(255, 150, 0,  0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, haloR, haloR * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── 2. ORBITING SPARKLE STARS ─────────────────────────────
+  const sparkDefs = [
+    { phase: 0,             dist: 0.68, size: 3.2 },
+    { phase: Math.PI * 0.5, dist: 0.60, size: 2.4 },
+    { phase: Math.PI,       dist: 0.65, size: 2.8 },
+    { phase: Math.PI * 1.5, dist: 0.58, size: 2.0 },
+    { phase: Math.PI * 0.8, dist: 0.72, size: 1.8 },
+  ];
+  sparkDefs.forEach((sp, i) => {
+    const angle  = t * 0.75 + sp.phase;
+    const pulse  = 0.5 + 0.5 * Math.abs(Math.sin(t * 2.8 + i * 1.3));
+    const sx     = cx + Math.cos(angle) * sp.dist * n.w;
+    const sy     = cy + Math.sin(angle) * sp.dist * n.w * 0.45;
+    const s      = sp.size * pulse;
+    if (s < 0.4) return;
+    ctx.save();
+    ctx.globalAlpha = 0.85 * pulse;
+    ctx.fillStyle   = i % 2 === 0 ? '#ffe566' : '#ffffff';
+    ctx.translate(sx, sy);
+    ctx.rotate(t * 1.8 + i);
+    // 4-point star shape
+    ctx.beginPath();
+    for (let p = 0; p < 8; p++) {
+      const a = (p * Math.PI) / 4;
+      const r = p % 2 === 0 ? s : s * 0.32;
+      p === 0
+        ? ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+        : ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // ── 3. DROP SHADOW ────────────────────────────────────────
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.filter      = 'blur(5px)';
+  ctx.translate(cx + 2, cy + 4);
   ctx.rotate(tilt);
+  ctx.drawImage(noteImg, -hw, -hh, n.w, n.h);
+  ctx.restore();
 
-  // Shimmer: subtle brightness pulse
-  const shimmer = 0.85 + 0.15 * Math.abs(Math.sin(n.shimmerTimer * 0.08));
-  ctx.globalAlpha = shimmer;
+  // ── 4. NOTE IMAGE ─────────────────────────────────────────
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(tilt);
+  // Pulse alpha slightly
+  ctx.globalAlpha  = 0.90 + 0.10 * Math.sin(t * 1.7);
+  ctx.shadowColor  = 'rgba(255, 200, 30, 0.95)';
+  ctx.shadowBlur   = 14;
+  ctx.drawImage(noteImg, -hw, -hh, n.w, n.h);
+  ctx.restore();
 
-  // Gold glow behind note
-  ctx.shadowColor  = 'rgba(255, 210, 60, 0.7)';
-  ctx.shadowBlur   = 18;
-  ctx.drawImage(noteImg, -n.w / 2, -n.h / 2, n.w, n.h);
+  // ── 5. GOLDEN BORDER FRAME ────────────────────────────────
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(tilt);
+  const borderAlpha = 0.55 + 0.30 * Math.sin(t * 2.4);
+  ctx.strokeStyle = `rgba(255, 215, 0, ${borderAlpha})`;
+  ctx.lineWidth   = 1.5;
+  ctx.strokeRect(-hw - 1.5, -hh - 1.5, n.w + 3, n.h + 3);
+  // Inner highlight line (top edge)
+  ctx.globalAlpha = 0.3 * borderAlpha;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth   = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-hw + 2, -hh + 1);
+  ctx.lineTo(hw - 2,  -hh + 1);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── 6. SHIMMER SWEEP ──────────────────────────────────────
+  const sweepPos = ((t * 0.35) % 1.8) - 0.2; // 0 → 1.6 range
+  if (sweepPos > 0 && sweepPos < 1.05) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(tilt);
+    ctx.globalAlpha = 0.20 * Math.sin(sweepPos * Math.PI);
+    const sweepX = -hw + sweepPos * n.w;
+    const sweep  = ctx.createLinearGradient(sweepX - 14, 0, sweepX + 14, 0);
+    sweep.addColorStop(0,   'rgba(255,255,255,0)');
+    sweep.addColorStop(0.5, 'rgba(255,255,255,1)');
+    sweep.addColorStop(1,   'rgba(255,255,255,0)');
+    ctx.fillStyle = sweep;
+    ctx.fillRect(-hw, -hh, n.w, n.h);
+    ctx.restore();
+  }
 
   ctx.restore();
 }
