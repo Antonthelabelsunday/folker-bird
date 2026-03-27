@@ -710,21 +710,7 @@ function updateBooster(now, delta) {
       nextNoteSpawn = now + 10000 + Math.random() * 15000;
     }
 
-    // Collision with bird (generous hitbox)
-    const inset = 10;
-    const bx = bird.x + 28, by = bird.y + 28;
-    const bw = bird.width - 56, bh = bird.height - 56;
-    const nx = boosterNote.x + inset, ny = boosterNote.y + inset;
-    const nw = boosterNote.w - inset * 2, nh = boosterNote.h - inset * 2;
-    if (bx + bw > nx && bx < nx + nw && by + bh > ny && by < ny + nh) {
-      collectNote(now);
-    }
-  }
-
-  // Expire boost
-  if (boostActive && now >= boostEndTime) {
-    boostActive = false;
-    nextNoteSpawn = now + 10000 + Math.random() * 15000;
+    // Collision disabled — visual only for now
   }
 }
 
